@@ -1,8 +1,100 @@
 # Synapse status
 
-Updated: 2026-10-18. Branch: `codex/synapse-live-discovery`.
+Updated: 2026-10-18. Branch: `codex/synapse-cited-synthesis`.
 
-## Current checkpoint — S-B complete
+## Current checkpoint — S-C implemented; live acceptance pending
+
+Implementation commit: `4a06751` on `codex/synapse-cited-synthesis`, based on S-B
+`07a8a56`. User selected Gemini instead of OpenAI and confirmed a replacement local
+key and free-tier project. No secret was committed. Installed skills and dependency
+lockfile are unchanged. No model generation or new Tavily search ran during S-C.
+
+Implemented explicit, idempotent `submit_synthesis` over saved live `sources_ready`
+evidence. One count preflight and at most one structured generation; no retry,
+repair, fallback, or synthesis fetch. Configurable Gemini model (default
+`gemini-2.5-flash-lite`), prompt `synthesis-v1`, 8,192 input preflight / 2,048 output
+limits, 30-second provider timeout, thinking disabled. Code validates claims, this
+run's evidence IDs, exact quotes, usage, and generated links. Success ends at
+`report_ready`, visibly incomplete with critique absent. Typed usage checkpoints,
+transactional schema v3 migration/idempotency, failure preservation, report/evidence
+inspection, and matching Markdown/JSON exports are included.
+
+### S-C actual verification
+
+| Command/check | Actual result |
+|---|---|
+| `uv sync --locked` | Passed; 54 resolved, 52 checked |
+| `uv run --no-sync ruff check .` | Passed |
+| `uv run --no-sync ruff format --check .` | 37 files formatted |
+| `uv run --no-sync mypy` | No issues in 31 files |
+| `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --no-sync pytest -m 'not live'` | 100 passed, 2 live deselected in 20.15 seconds |
+| After review: synthesis/UI tests | 26 passed; final disabled-model regression also passed separately |
+| `uv build --offline` | Source distribution and wheel built, including after review fixes |
+| Isolated wheel under `/tmp/synapse-sc-wheel`, executed from `/tmp` | Synthesis imports/contracts, bundled fixture, and matching reopened exports passed |
+| Distribution inspection | New synthesis module included; data, secrets, caches, and skills excluded |
+| `git diff --check`; installed skill/lockfile diff | Passed; preserved |
+
+Tests use the approved service/export/UI seams and injected external transport.
+They cover generation-once/reopen, unknown and actual cross-run IDs, unsupported
+quotes, malformed/refused/truncated output, quota/network/provider errors, input and
+reported-usage limits, forbidden tools/links, cancellation, deadline, artifact failure,
+visible sanitized HTTP status, gated explicit UI submission, citations, and downloads.
+The artifact failure test correctly expects export to fail until storage is restored;
+it then verifies incomplete artifact regeneration. No acceptance check was weakened.
+
+Browser verification used **offline synthetic network responses**, not Gemini. Saved
+proof run `ef1a3bf4-2b32-4d9f-93a3-f07d96fede84` under
+`/tmp/synapse-sc-browser/`, served on loopback port 8504. Confirmed three saved stages,
+report-ready/critique-pending labels, exact evidence, and keyboard activation of the
+E01 citation anchor. An actual JSON download matched the run, report, evidence, and
+absent critique. Markdown download control was activated, but no downloaded Markdown
+file was found; actual Markdown browser-download acceptance remains unverified.
+AppTest and service checks verify both export contents/controls. Screenshot:
+`/tmp/synapse-sc-browser.png`. Browser automation was unusually slow.
+
+### S-C live gate — pending by user choice
+
+Both expressly authorized attempts were preserved in ignored copies of the S-B
+SQLite database: `data/synapse-sc-smoke/` and `data/synapse-sc-smoke-retry-1/`.
+Both stopped at token-count preflight, before generation; the second returned
+HTTP 404 `NOT_FOUND`. Evidence remains saved, no automatic retry ran, and output
+usage is unknown. A read-only model catalog request succeeded and listed the default
+model; this does not establish count/generation compatibility.
+
+The initial full-request count envelope was replaced with the contents-only shape
+used by Google's official Python SDK for Developer API token counting. A regression
+failed before the fix and passed afterward. It counts serialized instructions,
+evidence, and schema as a preflight **estimate**, not an exact billable prompt count;
+actual returned usage is checked separately after generation. Official references:
+[REST token counting](https://ai.google.dev/api/tokens),
+[Google SDK source](https://github.com/googleapis/python-genai/blob/main/google/genai/models.py).
+This revised wire request has not been verified live. The user explicitly chose
+**Leave live verification pending** instead of authorizing another attempt. Do not
+retry or change smoke directories/idempotency keys to spend again without permission.
+
+### Next task and remaining limitations
+
+Next incomplete milestone: finish S-C's authorized live compatibility gate and actual
+Markdown browser download verification before claiming S-C complete or starting S-D1.
+If authorized later, use saved S-B evidence, preserve both failures, and allow only the
+newly approved request count. Inspect safe provider diagnostics and official contracts
+if it fails; do not guess model availability or add fallback calls.
+
+No live generation has succeeded, so there is no verified real model version/token
+usage/report. Credentials and enablement are environment-only; `.env` is not autoloaded.
+Free-tier confirmation is not an enforceable billing cap. Preflight estimation cannot
+guarantee the final provider prompt token count. An interrupted/cancelled response may
+have unknown usage despite provider work. Failed attempts cannot resume or regenerate
+the same run automatically. Citation integrity does not prove semantic grounding.
+Live critique, revision, benchmarks, PDF ingestion, and public hosting remain deferred.
+
+This implementation commit and the subsequent status checkpoint are pushed separately;
+inspect Git/hosted CI for their current publication state. Temporary continuation notes:
+`/tmp/synapse-session-handoff.md`. Read AGENTS and this status, inspect branch/status/remote,
+and rerun relevant verification before relying on these conclusions.
+
+## Historical S-B checkpoint — complete
+
 
 Implementation commit: `6cbbe2148a01a60489d2254345bfa778a3f300f9`, pushed to
 `origin/codex/synapse-live-discovery`. Based on S-A checkpoint `ae4142c`.
@@ -193,5 +285,5 @@ fast fixtures may finish before a person presses Cancel. Local single-user use o
 no automatic resume, concurrent jobs, revisions, or published evaluation metrics.
 The offline socket guard is a tripwire, not a process/network security sandbox.
 
-The S-A checkpoint above is historical. Completed S-B verification is recorded at
-the top of this file. S-C remains unstarted.
+The S-A/S-B checkpoints above are historical. Current S-C progress and remaining
+acceptance gates are recorded at the top of this file.
