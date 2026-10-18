@@ -12,8 +12,12 @@ Updated: 2026-10-18. Branch: `codex/synapse-foundation`.
 
 ## Next
 
-Plan and implement S-A, starting with its public contracts and deterministic fixture
-run. Confirm testing boundaries if invoking TDD. No subsequent milestone is active.
+S-A is in progress; the user approved all seven public test boundaries and curated demos.
+Typed contracts, synthetic fixture adapters, integrity validation, SQLite stage/event
+persistence, the bounded service, and Markdown/JSON export are implemented. Local
+lint and strict typing pass; 15 offline tests pass, including reopen/idempotency and
+the insufficient-evidence path. UI, failure/restart acceptance tests, browser checks,
+distribution verification, and hosted CI remain before S-A is complete.
 
 ## Planned
 
