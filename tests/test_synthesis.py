@@ -64,12 +64,25 @@ class ModelWire(Wire):
             assert set(payload) == {"contents"}
             counted = json.loads(payload["contents"][0]["parts"][0]["text"])
             assert "systemInstruction" in counted
-            assert "responseJsonSchema" in counted["generationConfig"]
+            assert counted["generationConfig"]["responseFormat"]["text"]["schema"]
             assert json.loads(counted["contents"][0]["parts"][0]["text"])["evidence"]
             return Reply(b'{"totalTokens": 200}')
         assert url.endswith(":generateContent") and method == "POST"
         assert "tools" not in payload and "cachedContent" not in payload
+        assert "gemini-3.5-flash-lite:generateContent" in url
+        assert "responseJsonSchema" not in payload["generationConfig"]
+        assert (
+            payload["generationConfig"]["responseFormat"]["text"]["mimeType"] == "APPLICATION_JSON"
+        )
         assert payload["generationConfig"]["maxOutputTokens"] == 2048
+        assert payload["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "MINIMAL"}
+        assert "temperature" not in payload["generationConfig"]
+        schema = payload["generationConfig"]["responseFormat"]["text"]["schema"]
+        assert "$defs" not in schema
+        assert "maxLength" not in json.dumps(schema)
+        assert schema["properties"]["claims"]["items"]["properties"]["evidence_ids"]["items"] == {
+            "type": "string"
+        }
         content = json.loads(payload["contents"][0]["parts"][0]["text"])
         evidence_id = content["evidence"][0]["id"]
         self.destinations.append((url, address))
@@ -126,6 +139,8 @@ def test_saved_sources_generate_cited_report_once_and_reopen(tmp_path: Path) -> 
         assert len(wire.destinations) == 1
         markdown, bundle = service.export_run(run_id)
         assert "[E01](#e01)" in markdown and "INCOMPLETE" in markdown
+        assert snapshot.analysis
+        assert all(str(e.id) in markdown for e in snapshot.analysis.evidence)
         assert "test-gemini-key" not in bundle and "Offline fixture" not in markdown
     with ResearchService(tmp_path) as reopened:
         assert reopened.get_run(run_id) == snapshot
@@ -147,6 +162,7 @@ def test_saved_sources_generate_cited_report_once_and_reopen(tmp_path: Path) -> 
         "timeout",
         "tool_call",
         "empty_claim",
+        "oversized_claim",
         "provider_error",
     ],
 )
@@ -197,9 +213,9 @@ def test_invalid_or_overbudget_model_outputs_preserve_sources_and_usage(
                 value["candidates"][0]["content"]["parts"][0]["text"] = json.dumps(draft)
             elif failure == "tool_call":
                 value["candidates"][0]["content"]["parts"] = [{"functionCall": {"name": "fetch"}}]
-            elif failure == "empty_claim":
+            elif failure in {"empty_claim", "oversized_claim"}:
                 draft = json.loads(value["candidates"][0]["content"]["parts"][0]["text"])
-                draft["claims"][0]["text"] = " "
+                draft["claims"][0]["text"] = " " if failure == "empty_claim" else "x" * 2001
                 value["candidates"][0]["content"]["parts"][0]["text"] = json.dumps(draft)
             elif failure == "malformed":
                 value["candidates"][0]["content"]["parts"][0]["text"] = "{bad json"
@@ -455,3 +471,38 @@ def test_sources_ui_requires_enablement_and_explicit_submission(
         assert not app.exception
         assert len(wire.destinations) == 1
         assert not any(button.label == "Generate cited report" for button in app.button)
+
+
+def test_provider_transport_honors_the_configured_header_wait_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ssl
+    from uuid import UUID
+
+    import urllib3
+
+    seen: list[float] = []
+
+    class RejectedTLS:
+        sock = None
+
+        def __init__(self, host: str, **kwargs: object) -> None:
+            timeout = kwargs["timeout"]
+            assert isinstance(timeout, (float, int))
+            seen.append(float(timeout))
+
+        def connect(self) -> None:
+            raise ssl.SSLCertVerificationError("test failure")
+
+        def close(self) -> None:
+            pass
+
+    run_id = UUID(seed_sources(tmp_path))
+    monkeypatch.setattr(urllib3.connection, "HTTPSConnection", RejectedTLS)
+    adapter = GeminiSynthesis("test-gemini-key", resolver=lambda h, t: ["93.184.216.34"])
+    with ResearchService(
+        tmp_path, synthesis=adapter, synthesis_enabled=True, clock=lambda: 0.0
+    ) as service:
+        snapshot = service.wait(service.submit_synthesis(run_id, "timeout-contract"))
+        assert snapshot.run.state == "failed"
+        assert seen == [30.0]

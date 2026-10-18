@@ -78,7 +78,7 @@ class Limits(Model):
 
 
 class SynthesisConfig(Model):
-    model: str = Field(default="gemini-2.5-flash-lite", pattern=r"^gemini-[a-z0-9.-]+$")
+    model: str = Field(default="gemini-3.5-flash-lite", pattern=r"^gemini-[a-z0-9.-]+$")
     max_input_tokens: int = Field(default=8192, ge=1, le=100_000)
     max_output_tokens: int = Field(default=2048, ge=128, le=8192)
     timeout_seconds: int = Field(default=30, ge=1, le=120)

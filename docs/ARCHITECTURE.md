@@ -6,7 +6,7 @@ S-A implements Pydantic contracts and four typed fixture adapters; deterministic
 integrity validation; a SQLite-backed run service with one background thread; derived
 atomic artifacts and exports; and a native Streamlit UI. S-B adds a direct Tavily adapter, pinned-IP HTTP fetching, bounded DNS resolution,
 BeautifulSoup cleaning, heuristic evidence selection, and per-query/source checkpoints.
-S-C adds explicit Gemini synthesis over saved evidence; live compatibility is pending.
+S-C adds explicit Gemini synthesis over saved evidence; the authorized live smoke gate passed.
 Revision, live critique, and benchmark evaluation remain unimplemented.
 
 The fixture catalog is bundled package data. Stage outputs carry schema version 1.
@@ -165,9 +165,9 @@ A contents-only `countTokens` call estimates serialized instructions, evidence a
 schema (aligned with Google's Python SDK Developer API request shape). This estimate
 is not an exact full-request billable token count. Above-limit estimates prevent
 inference; reported generation usage is checked afterward and can reject a report.
-Default model/configuration: Gemini 2.5 Flash-Lite, 8,192 input / 2,048 output tokens,
-30 seconds/request, thinking disabled, no retries. The request watchdog and overall
-600-second deadline remain enforced. Actual provider compatibility is pending.
+Default model/configuration: Gemini 3.5 Flash-Lite, 8,192 input / 2,048 output tokens,
+30 seconds/request, minimal thinking, no retries. The request watchdog and overall
+600-second deadline remain enforced. The authorized Gemini 3.5 Flash-Lite provider smoke gate passed.
 
 Versioned synthesis stage checkpoints distinguish started/counting/generating/generated/
 validated states and preserve returned model version and usage. A cancelled/lost response
@@ -182,3 +182,11 @@ and optional model ID. These flags are consent/configuration gates, not a billin
 No automatic `.env` loading. UI reruns cannot submit a second attempt; generating uses
 an explicit labeled control. Offline tests exercise the service/export/UI seams with
 injected transport; live provider verification remains a separate authorized gate.
+
+S-C compatibility fixes: default model updated after Google's explicit new-user rejection
+of 2.5 Flash-Lite; `responseFormat.text` carries an inline JSON schema and the REST
+thinking enum is `MINIMAL`. Provider grammar omits unsupported string-length constraints
+and UUID enums; Pydantic text bounds and run-owned evidence/quote validation remain
+mandatory. Controlled probes isolated the UUID enum rejection. HTTP connection/header
+waiting now honors the caller's attempt budget instead of an unrelated five-second cap;
+the watchdog, DNS, remaining deadline and streamed-read limits still apply.

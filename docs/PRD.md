@@ -56,7 +56,7 @@ The 3,000-character bound follows the CV. It limits coverage and must be visible
 
 ### 2.5 Architecture and stack
 
-Use Python, Tavily search, BeautifulSoup, Streamlit, Pydantic, SQLite, and Pytest. User-approved S-C provider override: Gemini replaces the originally proposed OpenAI adapter; default model is configurable `gemini-2.5-flash-lite`. LangChain remains deferred because direct adapters suffice. Keep the explicit orchestrator and freeze tested dependencies. Record the actual model/version and usage; free-tier eligibility depends on the configured Google project. Provider compatibility remains unverified until the authorized smoke gate passes.
+Use Python, Tavily search, BeautifulSoup, Streamlit, Pydantic, SQLite, and Pytest. User-approved S-C provider override: Gemini replaces the originally proposed OpenAI adapter; default model is configurable `gemini-3.5-flash-lite`. LangChain remains deferred because direct adapters suffice. Keep the explicit orchestrator and freeze tested dependencies. Record the actual model/version and usage; free-tier eligibility depends on the configured Google project. The authorized S-C Gemini smoke gate passed; actual configuration, usage and limitations are recorded in STATUS.
 
 Streamlit calls a Python service layer. Services call search, fetch, and model adapters. SQLite holds metadata and events; a per-run artifact directory holds source snapshots and report versions. A REST service is optional after the local flow works. Streamlit reruns must not start duplicate jobs: persist a run ID and submit work once through a bounded background worker.
 

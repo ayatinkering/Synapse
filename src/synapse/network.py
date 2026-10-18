@@ -203,15 +203,13 @@ class HTTPTransport:
             connection = urllib3.connection.HTTPSConnection(
                 address,
                 port=443,
-                timeout=min(5, timeout),
+                timeout=timeout,
                 server_hostname=host,
                 assert_hostname=host,
                 ssl_context=ssl.create_default_context(),
             )
         else:
-            connection = urllib3.connection.HTTPConnection(
-                address, port=80, timeout=min(5, timeout)
-            )
+            connection = urllib3.connection.HTTPConnection(address, port=80, timeout=timeout)
 
         # A read timeout alone resets on every header read. Close the socket at the
         # absolute attempt deadline as well, including a slow-drip response header.

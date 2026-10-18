@@ -29,7 +29,7 @@ def get_service(data_dir: str) -> ResearchService:
     adapter = None
     if synthesis_enabled:
         config = SynthesisConfig(
-            model=os.environ.get("SYNAPSE_GEMINI_MODEL", "gemini-2.5-flash-lite")
+            model=os.environ.get("SYNAPSE_GEMINI_MODEL", "gemini-3.5-flash-lite")
         )
         adapter = GeminiSynthesis(gemini_key, config=config)
     service = ResearchService(

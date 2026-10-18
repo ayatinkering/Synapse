@@ -167,10 +167,15 @@ class GeminiSynthesis:
     ) -> Report:
         config = self.config
         schema = Draft.model_json_schema()
-        schema["$defs"]["DraftClaim"]["properties"]["evidence_ids"]["items"] = {
-            "type": "string",
-            "enum": [str(e.id) for e in analysis.evidence],
-        }
+        claim_schema = schema.pop("$defs")["DraftClaim"]
+        schema["properties"]["claims"]["items"] = claim_schema
+        # Provider grammar uses supported fields; Draft still enforces all text bounds.
+        for prop in claim_schema["properties"].values():
+            for variant in prop.get("anyOf", [prop]):
+                variant.pop("minLength", None)
+                variant.pop("maxLength", None)
+        # Gemini rejects this UUID enum; application validation enforces ownership.
+        claim_schema["properties"]["evidence_ids"]["items"] = {"type": "string"}
         sources = {s.id: s for s in analysis.sources}
         data = {
             "question": run.input.question,
@@ -194,12 +199,14 @@ class GeminiSynthesis:
             "systemInstruction": {"parts": [{"text": INSTRUCTIONS}]},
             "contents": [{"role": "user", "parts": [{"text": json.dumps(data)}]}],
             "generationConfig": {
-                "responseMimeType": "application/json",
-                "responseJsonSchema": schema,
+                "responseFormat": {"text": {"mimeType": "APPLICATION_JSON", "schema": schema}},
                 "maxOutputTokens": config.max_output_tokens,
                 "candidateCount": 1,
-                "temperature": 0,
-                "thinkingConfig": {"thinkingBudget": 0},
+                "thinkingConfig": (
+                    {"thinkingLevel": "MINIMAL"}
+                    if config.model.startswith("gemini-3.")
+                    else {"thinkingBudget": 0}
+                ),
             },
         }
         record = SynthesisRecord(status="started")

@@ -5,7 +5,7 @@ Offline demonstrations run entirely on authored synthetic fixtures and need no c
 S-B adds opt-in Tavily discovery and public HTML evidence extraction for user questions.
 Live discovery stops at **sources ready**. S-C adds optional Gemini synthesis over saved
 evidence, ending at **report ready**; live critique remains pending S-D1.
-S-C live provider compatibility is pending; two token-count preflights failed before generation.
+S-C's bounded Gemini smoke check passed; reports reopen with matching exports.
 The bounded Tavily smoke gate passed; see STATUS for the exact result and limitations.
 
 Choose the AST-versus-embedding comparison or the sparse-evidence scenario, inspect
@@ -82,7 +82,7 @@ sources. Results persist under ignored `data/synapse-sb-smoke/`; rerunning again
 directory reopens the same submission rather than spending again. `SYNAPSE_SMOKE_DATA_DIR`
 can select another directory; changing it can permit another charged run.
 
-## Cited synthesis (S-C; live verification pending)
+## Cited synthesis (S-C)
 
 Use a replacement `GEMINI_API_KEY` in the server environment; never enter credentials
 in research fields. The app does not load `.env` automatically. Confirm your Google
@@ -96,7 +96,7 @@ SYNAPSE_ENABLE_SYNTHESIS=1 SYNAPSE_GEMINI_FREE_TIER=1 uv run --no-sync streamlit
 Select an existing live `sources_ready` run and press **Generate cited report**.
 This sends saved question/source metadata/excerpts to Google; it performs no search
 or fetch. Review sensitive content before enabling it. `SYNAPSE_GEMINI_MODEL` selects
-the model (default `gemini-2.5-flash-lite`). Restart after configuration changes.
+the model (default `gemini-3.5-flash-lite`). Restart after configuration changes.
 Without the flags/key, saved runs remain inspectable and generation is disabled.
 
 The service exposes `submit_synthesis(run_id, idempotency_key)` when constructed with
@@ -109,16 +109,21 @@ and a new 600-second synthesis deadline. One `countTokens` request estimates the
 instructions/evidence/schema; generation occurs only if it fits. That estimate is not
 an exact full-request billable count. Actual returned usage is checked and persisted;
 excess usage fails validation after the call. Unknown usage/cost remains unknown.
-Generation disables thinking and exposes no tools. Prompt `synthesis-v1` requires
+Generation requests minimal thinking and exposes no tools. Prompt `synthesis-v1` requires
 structured, evidence-linked claims and limitations. Code builds citations and rejects
 unknown/cross-run evidence IDs, altered quotes, model links, malformed output, and
 refused/truncated responses. Citation integrity does not establish factual support.
 
 `report_ready` exports remain **incomplete** because critique is absent. Saved evidence
 survives model errors, cancellation, storage failure, and interrupted recovery.
-Provider compatibility has not passed: the authorized attempts failed at token counting,
-with the second returning HTTP 404 `NOT_FOUND`. The SDK-aligned contents-only preflight
-is tested offline but has not been tried live. The user chose to leave this gate pending.
+The authorized Gemini 3.5 Flash-Lite smoke check passed over saved S-B evidence,
+including reopen/export equivalence. Actual usage was 2,257 input and 690 output tokens
+(0 thinking); see STATUS for prior failures and diagnostic calls. The default was
+updated because Google rejected 2.5 Flash-Lite as unavailable to new users. The provider
+uses the current `responseFormat` JSON schema and REST `MINIMAL` thinking level.
+Evidence IDs use string fields in the provider grammar: Gemini rejected UUID enums.
+Synapse still validates UUID parsing, run ownership, exact quotations and text bounds
+before accepting a report. Provider grammar compatibility never bypasses those checks.
 
 The opt-in check in `tests/test_live_synthesis.py` copies existing S-B evidence using
 SQLite backup and verifies generation/reopen/exports without new searches. Run it only
@@ -187,7 +192,7 @@ citations/quotes establishes integrity, not semantic support. Fixture runs can f
 before a user can press Cancel; deterministic service tests exercise cancellation.
 
 S-B's authorized live acceptance gate passed; evidence is tracked in STATUS.
-S-C is implemented with offline verification; its live acceptance gate remains pending.
+S-C is implemented and its live acceptance gate passed.
 Model critique (S-D1), revision (S-D2), and measured evaluation (S-E) remain unimplemented. Public hosting requires a constrained egress service and
 access review; the local fetch policy is not a deployment sandbox. PDF, compressed
 responses, nonstandard ports, and access-restricted pages are unsupported.

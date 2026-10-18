@@ -159,6 +159,8 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
             lines += [
                 f"### {evidence.display_id}",
                 "",
+                f"Evidence ID: {evidence.id}",
+                "",
                 plain(evidence.excerpt),
                 "",
                 f"Source: {source.id} ({source.display_id}) — {plain(source.title)}",
