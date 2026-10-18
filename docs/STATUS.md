@@ -1,8 +1,102 @@
 # Synapse status
 
-Updated: 2026-10-18. Branch: `codex/synapse-cited-synthesis`.
+Updated: 2026-10-18. Branch: `codex/synapse-live-critique`.
 
-## Current checkpoint — S-C complete
+## Current checkpoint — S-D1 complete
+
+Implementation/README commit: `5a0e3ec`, branch `codex/synapse-live-critique`, based on
+verified S-C `b4fcbbf`. The user requested the smallest complete D1 and a clear README
+using the reference repository's presentation without hackathon framing. The README
+now uses an overview, badges, pipeline, quick start, inspection, limits, structure,
+testing and scope; detailed verification history stays here.
+
+Implemented one explicit `submit_critique(run_id, idempotency_key)` over a saved live
+report. The critic reuses Gemini transport, token checks, usage checkpoints and the
+single worker. It returns five strict scores (0–2) and bounded claim-linked findings;
+application code calculates the total and validates ownership/version. Report/evidence
+remain unchanged. Successful critique ends the run at `completed`; failed/cancelled
+critique preserves prior outputs and remains visibly incomplete. No automatic retry,
+repair, revision, new framework, dependency, SQL table or schema migration was added.
+Configuration/key are persisted in run JSON under the existing transactional ownership
+checks; the local run scan trades scalability for simplicity. Old optional fields
+reopen compatibly. Installed skills, lockfiles, existing runs and prior work are preserved.
+
+### Verification performed
+
+| Command/check | Actual result |
+|---|---|
+| `uv sync --locked` | Passed; 54 resolved, 52 checked |
+| `uv run --no-sync ruff check .` | Passed |
+| `uv run --no-sync ruff format --check .` | 40 files formatted |
+| `uv run --no-sync mypy` | No issues in 34 files |
+| `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --no-sync pytest -m 'not live'` | 123 passed, 3 live deselected in 31.76 seconds |
+| Authorized opt-in `tests/test_live_critic.py` | 1 passed in 4.89 seconds; preserved input/report, complete state, idempotency and reopened exports |
+| `uv build --offline` | Wheel and source distribution built |
+| Isolated wheel `/tmp/synapse-d1-wheel`, executed from `/tmp` | Critic import, identical regenerated live bundle, and four-stage fixture passed without provider calls |
+| Clean Git archive `/tmp/synapse-d1-clean-checkout` | `uv sync --locked --offline` using the existing package cache passed; package version, critic import and fixture completion/export passed |
+| Distribution/ignore inspection and `git diff --check` | Passed; no secrets, runtime data, skills or caches in archives; skills/dependency lockfiles unchanged |
+
+The approved service/export/UI boundaries are reused. New checks cover completion,
+report preservation/reopen, explicit credential-gated UI submission, finding inspection,
+score count/bounds/types, unexpected totals, unknown claim IDs, empty/oversized comments,
+missing findings on a reduced score, malformed/refused/tool/link output, quota/budgets,
+usage, cancellation, busy/conflicting requests, deadline and disk failure. All earlier
+fixture/discovery/synthesis checks remain. Regressions first failed for missing critique
+behavior and missing critic prompt provenance in Markdown, then passed after fixes.
+No acceptance check was weakened.
+
+### Authorized live and browser result
+
+The confirmed free-tier Gemini key was read locally without printing it. One count
+and one generation succeeded; **no new Tavily or synthesis calls**. The saved S-C
+report was copied with SQLite backup to ignored `data/synapse-d1-smoke/`; original
+S-B/S-C stores were preserved. Run: `34fd52bc-e189-45a0-869e-e7010bc20c92`.
+
+Evaluator/model version: `gemini-3.5-flash-lite`; prompt: `critic-v1`.
+Preflight estimate: **6,366** tokens. Actual input **5,978**, output **118**, thinking
+**0**, total **6,096**. Default cap remains 8,192 input / 2,048 output, 30 seconds per
+request, 600 seconds per stage job, minimal thinking, no retries. Actual monetary cost
+is unavailable; the free-tier flag is confirmation, not a billing control.
+
+The model returned scores **[2, 2, 1, 1, 2]**, total **8/10**, and **one finding**.
+These are model judgments from one compatibility example, not a measured quality result.
+All four actual stage outputs are now present in the saved run. Its search/evidence/report
+are the existing S-B/S-C results, not a new end-to-end provider run in this session.
+
+Browser on loopback port 8506, with provider submission disabled, reopened the complete
+run and showed 4/4 saved outputs. Keyboard activation opened Critique; inspected the
+five scores/evaluator, finding linked to C05, and its exact E09 excerpt. Actual downloads
+`~/Downloads/synapse-34fd52bc-e189-45a0-869e-e7010bc20c92 (3).md` and `(2).json` matched
+SQLite report/evidence/critique/usage and full evidence IDs, with no incomplete marker.
+Critic prompt provenance is present in Markdown. Screenshot: `/tmp/synapse-d1-critique.png`.
+AppTest separately verified explicit submission, disabled configuration, rerun idempotency,
+score labels, finding inspection, and download controls. No provider call was made in
+the browser. Browser automation was slow but completed.
+
+### Remaining limitations and next task
+
+The first local four-stage P0 workflow is complete. Next optional milestone:
+**S-D2 — one bounded revision**, followed by **S-E — measured evaluation**. Do not
+start either without the user's request. Additional provider calls require relevant
+authorization; reopen this saved run instead of changing smoke directories to spend.
+
+No semantic-support/usefulness benchmark or human grounding audit was performed. A score
+is not a fact check; the same model writes and critiques. Older mirrors, imperfect HTML
+extraction, heuristic evidence selection and URL/hash-only independence remain limitations.
+The immutable saved report can retain its original generation-time pending-critique label
+inside raw JSON; run state and current UI/export status correctly show completion.
+Preflight is an estimate, unknown-response usage remains unknown, cancellation is
+cooperative, and failed stages do not automatically resume or retry. Local single-user
+use only; no revision, PDF/OCR, scheduled research, multi-user/public-hosting readiness,
+merge, deployment, force push or paid-tier switch was introduced.
+
+Hosted CI for this increment is reported separately. Read AGENTS and this STATUS,
+inspect Git status/branch/recent commits/remote, and verify relevant current behavior
+before relying on this checkpoint. Temporary continuation notes:
+`/tmp/synapse-session-handoff.md`.
+
+## Historical S-C checkpoint — complete
+
 
 Implementation: `4a06751`; verified completion/fixes: `6fd1b69`.
 Branch: `codex/synapse-cited-synthesis`, based on S-B `07a8a56`.
