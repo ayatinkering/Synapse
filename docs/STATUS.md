@@ -2,14 +2,18 @@
 
 Updated: 2026-10-18. Branch: `codex/synapse-foundation`.
 
-## Done locally
+## Done
 
 - M0 documentation, installable Python package, locked tooling, and offline CI definition.
 - All 34 supplied skill files/lockfile were preserved byte-for-byte.
+- Foundation committed as `09167c2` and pushed to `origin/codex/synapse-foundation`.
+- Hosted CI passed on both Python 3.12 and 3.13, including frozen setup, lint,
+  formatting, typing, offline tests, distribution builds, and isolated wheel checks.
 
-## In progress
+## Next
 
-- Publish the verified foundation branch and check hosted CI. Commit/push pending.
+Plan and implement S-A, starting with its public contracts and deterministic fixture
+run. Confirm testing boundaries if invoking TDD. No subsequent milestone is active.
 
 ## Planned
 
@@ -51,9 +55,20 @@ the same exclusion check. uv warns that the local cache sits inside the source
 directory; explicit archive inspection confirms it is excluded. Cross-filesystem
 wheel installation fell back from hardlinks to copying, without affecting results.
 
+## GitHub evidence
+
+- Foundation commit: `09167c2f2dbab046336017d2b47ff58a2a2ea2b6`.
+- Verified run: [CI 39118270917](https://github.com/ayatinkering/Synapse/actions/runs/39118270917).
+- Both matrix jobs completed successfully; every install/check/build/wheel step passed.
+- The repository was empty. GitHub automatically selected its first pushed branch,
+  `codex/synapse-foundation`, as the default branch. No `main` branch was created,
+  no merge was performed, and repository settings were not changed.
+- This status update records the verified foundation run; its own commit does not
+  change the package, dependency lock, tests, or CI workflow.
+
 ## Limits
 
 - M0 verifies development infrastructure only; it does not satisfy product S01-S15.
-- Hosted CI and Python 3.13 results are unverified until GitHub runs them.
+- Package checks do not establish research quality or live provider compatibility.
 - No paid calls, credential configuration, deployment, merge, or force push authorized
   by this increment. Dependency setup downloads are separate from provider use.
