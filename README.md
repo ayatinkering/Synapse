@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![CI](https://github.com/ayatinkering/Synapse/actions/workflows/ci.yml/badge.svg?branch=codex%2Fsynapse-live-critique)](https://github.com/ayatinkering/Synapse/actions/workflows/ci.yml)
+[![CI](https://github.com/ayatinkering/Synapse/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ayatinkering/Synapse/actions/workflows/ci.yml)
 
 **A local research assistant that turns a question into inspectable sources, a cited report, and a model critique.**
 

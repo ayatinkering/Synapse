@@ -1,8 +1,14 @@
 # Synapse status
 
-Updated: 2026-10-18. Branch: `codex/synapse-live-critique`.
+Updated: 2026-10-18. Integration branch: `main`.
 
 ## Current checkpoint — S-D1 complete
+
+Main integration: [PR #1](https://github.com/ayatinkering/Synapse/pull/1) contains
+all milestone work through D1. The user explicitly authorized creating `main` from
+foundation `77dbc03` and merging the accumulated work. Development checkpoint:
+`167efce`; implementation: `5a0e3ec`. Preserve the milestone branches and commit history.
+Next task remains optional S-D2 revision, followed by S-E evaluation.
 
 Implementation/README commit: `5a0e3ec`, branch `codex/synapse-live-critique`, based on
 verified S-C `b4fcbbf`. The user requested the smallest complete D1 and a clear README
