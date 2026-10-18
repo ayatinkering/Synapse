@@ -1,94 +1,99 @@
 # Synapse
 
 [![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![CI](https://github.com/ayatinkering/Synapse/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ayatinkering/Synapse/actions/workflows/ci.yml)
+[![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 
-**A local research assistant that turns a question into inspectable sources, a cited report, and a model critique.**
+**Turn a research question into a report with sources you can inspect.**
 
-Synapse saves the evidence behind its answers. Open a claim to see the exact excerpt,
-source metadata, and character offsets; reopen the run later or export it as Markdown
-and JSON. An offline demonstration works without API keys.
+Synapse searches the web, collects relevant passages, and uses Gemini to write a cited
+research report. It then reviews the report for evidence support, coverage, source
+quality, uncertainty, and clarity.
 
-## What Synapse Does
+Each report stays connected to its saved sources. You can inspect the original passages,
+revisit previous research, and download your results as Markdown or JSON.
 
-| Capability | Behavior |
-|---|---|
-| Discover | Search with Tavily using the question and up to two distinct subquestions |
-| Collect evidence | Fetch public HTML, clean and bound the text, select exact excerpts |
-| Write a report | Use Gemini to generate claims linked to saved evidence |
-| Critique | Score five dimensions and return findings linked to report claims |
-| Inspect and export | Browse sources, claims, findings, limits, usage, and saved runs |
-| Demonstrate offline | Run two synthetic scenarios with predetermined reports and critiques |
+## Features
 
-A valid citation proves that its excerpt exists in the saved source. It does **not**
-prove the claim is true. A model critique is a review aid, not an independent fact check.
+- **Web research:** search by question, add subquestions, and filter by date.
+- **Traceable answers:** follow a report's citations to the exact saved passages.
+- **Report review:** see a five-part score and comments linked to individual claims.
+- **Research history:** reopen saved runs with their sources, reports, and reviews.
+- **Portable results:** export complete or partial research as Markdown and JSON.
+- **Offline demo:** explore the workflow with sample data and no API keys.
 
 ## Core Pipeline
 
 ```mermaid
 flowchart LR
-    Q[Question] --> D[Discovery]
-    D --> A[HTML and exact evidence]
-    A --> S[Cited synthesis]
-    S --> C[Critique]
-    D & A & S & C --> DB[(Local SQLite)]
-    DB --> E[Inspect and export]
+    Q[Research question] --> S[Search the web]
+    S --> E[Collect evidence]
+    E --> R[Write a cited report]
+    R --> C[Review the report]
+    C --> X[Inspect and export]
 ```
 
-1. **Discovery:** preview deterministic queries and search public sources. Search
-   snippets are metadata; they cannot become evidence.
-2. **Analysis:** fetch selected pages, remove navigation/scripts/forms, and save up to
-   three excerpts per source using a deterministic relevance heuristic.
-3. **Synthesis:** generate one structured report using the saved question and evidence.
-   Reject invalid evidence IDs, altered quotations, malformed output, and budget violations.
-4. **Critique:** evaluate grounding, coverage, source quality/diversity, uncertainty,
-   and clarity/actionability. Each scores 0–2; the application calculates the total
-   out of 10 and validates every finding's claim ID.
+1. **Search:** turn the question and subquestions into search queries and retrieve
+   relevant pages through Tavily.
+2. **Collect evidence:** extract readable text from the pages and save relevant passages
+   alongside source links, dates when available, and retrieval details.
+3. **Write:** ask Gemini to produce a report using the saved evidence. Check that cited
+   passages exist and quoted text matches the source.
+4. **Review:** assess the report across five criteria, each scored from 0 to 2. Display
+   the total out of 10 with comments linked to the report's claims.
 
-Live stages use explicit buttons: **Start live discovery → Generate cited report →
-Evaluate report**. Each model stage allows one attempt per run, with no automatic retry,
-repair, or revision. Failed or cancelled runs preserve their saved outputs and export
-as incomplete bundles.
+## Tech Stack
 
-## Quick Start
+| **Layer** | **Tools** |
+| --------- | --------- |
+| Language | Python 3.12 / 3.13 |
+| Interface | Streamlit |
+| Search | Tavily API |
+| Report generation and review | Gemini API |
+| Content extraction | BeautifulSoup |
+| Networking | urllib3, dnspython |
+| Data validation | Pydantic |
+| Storage | SQLite, local files, filelock |
+| Pipeline execution | Python service with a background worker |
+| Development and testing | uv, Pytest, Streamlit AppTest, Ruff, mypy |
+
+## Getting Started
 
 ### Requirements
 
 - Python **3.12 or 3.13**
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- Optional for live runs: a **Tavily API key** and a **Gemini API key**
+- For web research: **Tavily** and **Gemini** API keys
 
-### Install
-
-From your checkout:
+### Installation
 
 ```bash
+git clone https://github.com/ayatinkering/Synapse.git
+cd Synapse
 uv sync --locked
 ```
 
-### Run the Offline Demo
+### Try the Offline Demo
 
 ```bash
 uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
 ```
 
-Open the address printed by Streamlit, usually **http://127.0.0.1:8501**.
-Choose **Offline demonstration**, select a scenario, then press **Start offline run**.
-The comparison scenario completes all four stages; the sparse scenario demonstrates
-an evidence gap. All offline sources, scores, and findings are synthetic.
+Open the local URL printed in the terminal, usually **http://127.0.0.1:8501**.
+Select **Offline demonstration**, choose a scenario, and click **Start offline run**.
+The sample sources, reports, and scores are predetermined so you can explore the app
+without external services.
 
-### Run with Live Sources
+### Research with Live Sources
 
-Put your keys in a local, ignored `.env` file:
+Create a `.env` file in the project directory:
 
 ```dotenv
 TAVILY_API_KEY=your_tavily_key
 GEMINI_API_KEY=your_gemini_key
 ```
 
-The app reads environment variables; it does not automatically load `.env`. In a Bash
-terminal, load your own file and enable the stages before launching:
+Load the keys and enable live research in a Bash terminal. This example assumes you
+have confirmed that your Gemini project uses the free tier:
 
 ```bash
 set -a
@@ -101,70 +106,52 @@ export SYNAPSE_GEMINI_FREE_TIER=1
 uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
 ```
 
-Set the free-tier confirmation only after checking your Gemini project's tier. It is a
-configuration gate, not an enforceable billing cap. Tavily calls and retries can consume
-credits; provider usage is recorded when returned, while monetary cost remains unknown.
-Never enter API keys in research fields or commit them to Git.
+The app reads environment variables; it does not load `.env` automatically. Keep keys
+private. Provider quotas and billing still apply; the free-tier setting does not cap charges.
 
-Choose **Live discovery**, enter a topic/question and optional subquestions/date filter,
-then review the preview and start. Once sources are ready, generate the report; once
-it is ready, evaluate it. Source failures and missing stages remain visible. No provider
-call starts merely by opening or refreshing a saved run.
+The default Gemini model is `gemini-3.5-flash-lite`. Set `SYNAPSE_GEMINI_MODEL` before
+launching to use another compatible model.
 
-Default model: **`gemini-3.5-flash-lite`**. To select another compatible model, set
-`SYNAPSE_GEMINI_MODEL` before launch. Restart after changing server configuration.
-Saved runs and the offline demo remain available without credentials.
+## Using Synapse
 
-## Inspecting a Run
+1. Choose **Live discovery** and enter a topic and research question.
+2. Add optional subquestions or a date filter, review the queries, and click
+   **Start live discovery**.
+3. Once sources are ready, click **Generate cited report**.
+4. Click **Evaluate report** to see the review and scores.
+5. Inspect the results or download them as Markdown or JSON.
 
-- **Report:** read claims and inspect their exact evidence.
-- **Sources & Evidence:** check URLs, failures, dates, truncation, hashes, and snapshots.
-- **Critique:** inspect the five scores, evaluator identity, and claim-linked findings.
-- **Run Details:** inspect configuration, provider usage, and ordered events.
+| **Tab** | **What you'll find** |
+| ------- | -------------------- |
+| Report | The report, its claims, and the evidence behind each claim |
+| Sources & Evidence | Saved passages, source details, dates, and collection errors |
+| Critique | Five review scores and comments linked to specific claims |
+| Run Details | Research settings, usage, and the sequence of completed steps |
 
-Use **Recent runs** or a run's URL to reopen it. **Download Markdown** and **Download JSON**
-contain the same run, source, evidence, report, and critique data. Missing stages are
-never invented; SQLite can regenerate missing derived export files.
+Use **Recent runs** to reopen earlier research. Results are stored locally in
+`data/synapse/`; set `SYNAPSE_DATA_DIR` to choose a different directory.
 
-## Storage and Limits
-
-Data lives in ignored `data/synapse/`. Set `SYNAPSE_DATA_DIR` to use another directory.
-One process owns a directory and one job runs at a time. Restart marks unfinished work
-interrupted; there is no automatic resume. Cancellation is cooperative.
-
-| Default limit | Value |
-|---|---|
-| Queries / results per query / selected sources | 3 / 5 / 10 |
-| Cleaned text per source | 3,000 characters |
-| Download / fetch-attempt budget | 2 MB / 15 seconds |
-| Model input preflight / output cap, per stage | 8,192 / 2,048 tokens |
-| Model request / stage-job deadline | 30 / 600 seconds |
-
-Token preflight is an estimate; actual returned usage is checked afterward. Lost or
-cancelled responses can have unknown usage. Search/fetch transient retries are bounded;
-model calls have no retries. Date preferences are search filters, not verified page dates.
-
-## Repository Structure
+## Project Structure
 
 ```text
 src/synapse/
-  models.py          Typed runs, sources, evidence, reports, critiques
-  discovery.py       Query planning and discovery orchestration
-  search.py          Tavily adapter
-  fetch.py           Bounded HTML fetching and evidence extraction
-  network.py         DNS, pinned connections, response/deadline limits
-  synthesis.py       Gemini transport, budgets, and cited report generation
-  critic.py          Five-dimension critique over saved evidence
-  service.py         Single worker and stage submission
-  storage.py         SQLite persistence and recovery
-  export.py          Validated Markdown/JSON exports
-  fixtures/          Bundled offline demonstrations
-  ui/                Streamlit application
-tests/                Offline regressions and opt-in live checks
-docs/                 Requirements, architecture, milestones, verification
+  ui/                Streamlit interface
+  discovery.py       Query planning and search coordination
+  search.py          Tavily integration
+  fetch.py           Page extraction and evidence selection
+  network.py         Bounded HTTP connections and URL checks
+  synthesis.py       Cited report generation
+  critic.py          Report review and scoring
+  models.py          Typed research data
+  service.py         Background processing
+  storage.py         Saved runs and recovery
+  export.py          Markdown and JSON export
+  fixtures.py        Offline demonstration adapters
+  fixtures/          Sample research data
+tests/               Automated tests
 ```
 
-## Testing
+## Development
 
 ```bash
 uv run --no-sync ruff check .
@@ -174,21 +161,5 @@ uv run --no-sync pytest -m 'not live'
 uv build
 ```
 
-Default tests run offline with temporary SQLite databases and injected network responses.
-CI checks Python 3.12/3.13 and executes the built wheel outside the checkout. Tests cover
-citation/score validation, budgets, failures, cancellation, persistence, exports, and
-Streamlit interactions. Live tests are opt-in and require separate authorization and
-local credentials. See [STATUS](docs/STATUS.md) for actual commands, model usage, browser
-checks, and limitations; passing tests are not a research-quality benchmark.
-
-## Current Scope
-
-The first four-stage local workflow is implemented. Revision and measured evaluation
-remain future milestones. HTML only: no PDF/OCR, paywall bypass, arbitrary browser
-research, background scheduling, or multi-user hosting. URL/hash deduplication does not
-establish independent authorship. Source extraction and model judgments can be wrong;
-review evidence before relying on a report. Public hosting needs additional access
-controls and constrained network egress.
-
-[Requirements](docs/PRD.md) · [Architecture](docs/ARCHITECTURE.md) ·
-[Build plan](docs/BUILD_PLAN.md) · [Verified status](docs/STATUS.md)
+The default tests run without API keys and cover evidence extraction, citation checks,
+report scoring, persistence, exports, and interface behavior.

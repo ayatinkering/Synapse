@@ -2,6 +2,22 @@
 
 Updated: 2026-10-18. Integration branch: `main`.
 
+## README presentation cleanup
+
+Documentation branch: `codex/readme-clarity`, based on merged `main` checkpoint `8630f99`.
+The user requested plain-language, recruiter-facing documentation without coding-agent
+provenance, internal milestone links, the Current Scope footer, or the CI badge.
+README now explains the product, features, pipeline, actual Tech Stack, installation,
+offline/live usage, interface, source layout and ordinary development commands.
+LangChain is absent from both source and locked dependencies, so no LangChain badge
+or stack claim was added; the header retains Python and Streamlit.
+
+Verified README section order, requested removals, badges, balanced code fences,
+`git diff --check`, and `uv build --offline` (wheel/source distribution). This is a
+README/status-only change; runtime code and dependencies are unchanged. No provider
+calls were made. D1 remains the verified product checkpoint below. Next optional work
+is still S-D2 revision, then S-E evaluation, when requested.
+
 ## Current checkpoint — S-D1 complete
 
 Main integration: [PR #1](https://github.com/ayatinkering/Synapse/pull/1) contains
