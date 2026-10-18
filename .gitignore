@@ -1,0 +1,40 @@
+# Python environments, build products, and tooling caches
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.uv-cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+build/
+dist/
+
+# Credentials and machine-local settings
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+.aws/
+.codex/
+*.pem
+*.key
+
+# Local research data: use curated tests/fixtures for versioned examples
+data/
+artifacts/
+runs/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store

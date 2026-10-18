@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+      UV_PYTHON_DOWNLOADS: never
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.12.12"
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --locked --python '${{ matrix.python-version }}'
+      - name: Lint
+        run: uv run --no-sync ruff check .
+      - name: Check formatting
+        run: uv run --no-sync ruff format --check .
+      - name: Type-check
+        run: uv run --no-sync mypy
+      - name: Offline tests
+        run: uv run --no-sync pytest -m 'not live'
+      - name: Build distributions
+        run: uv build
+      - name: Verify wheel outside checkout
+        run: |
+          uv venv /tmp/synapse-wheel --python '${{ matrix.python-version }}'
+          uv pip install --python /tmp/synapse-wheel/bin/python dist/*.whl
+          cd /tmp
+          /tmp/synapse-wheel/bin/synapse --version
+          /tmp/synapse-wheel/bin/python -m synapse --version
