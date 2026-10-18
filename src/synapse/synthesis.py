@@ -165,7 +165,6 @@ class GeminiSynthesis:
         context: WorkContext,
         checkpoint: Callable[[SynthesisRecord], None],
     ) -> Report:
-        config = self.config
         schema = Draft.model_json_schema()
         claim_schema = schema.pop("$defs")["DraftClaim"]
         schema["properties"]["claims"]["items"] = claim_schema
@@ -195,8 +194,57 @@ class GeminiSynthesis:
                 for e in analysis.evidence
             ],
         }
+        try:
+            draft = Draft.model_validate_json(
+                self.generate(INSTRUCTIONS, data, schema, context, checkpoint)
+            )
+        except (ValidationError, ValueError) as error:
+            raise ServiceError("MODEL_MALFORMED: Invalid report draft.") from error
+        if any(not c.text.strip() for c in draft.claims):
+            raise ServiceError("MODEL_MALFORMED: Empty claim text.")
+        generated_text = [*draft.limitations, *(c.text for c in draft.claims)]
+        if any(re.search(r"https?://|www\.|\]\(", text, re.IGNORECASE) for text in generated_text):
+            raise ServiceError("MODEL_LINK: Model-generated URLs or links are not permitted.")
+        if any(not text.strip() or len(text) > 3000 for text in draft.limitations):
+            raise ServiceError("MODEL_MALFORMED: Invalid limitation text.")
+        claims = [
+            Claim(run_id=run.id, display_id=f"C{i:02}", **claim.model_dump())
+            for i, claim in enumerate(draft.claims, 1)
+        ]
+        return Report(
+            run_id=run.id,
+            label=REPORT_LABEL,
+            claims=claims,
+            sections=[
+                Section(title="Question and scope", text=run.input.question),
+                Section(
+                    title="Approach",
+                    text="One Gemini generation using only saved evidence excerpts.",
+                ),
+                Section(title="Findings", text="See evidence-linked claims below."),
+                Section(title="Comparison", text="Comparison claims are marked by section."),
+                Section(title="Limitations", text="\n".join(draft.limitations)),
+                Section(
+                    title="Conclusion", text="Conclusion claims remain subject to source review."
+                ),
+            ],
+            validation_results=[
+                "Evidence IDs and exact quotes validated; semantic support unmeasured."
+            ],
+        )
+
+    def generate(
+        self,
+        instructions: str,
+        data: dict[str, Any],
+        schema: dict[str, Any],
+        context: WorkContext,
+        checkpoint: Callable[[SynthesisRecord], None],
+    ) -> str:
+        """Shared bounded, tool-free generation for synthesis and critique."""
+        config = self.config
         payload: dict[str, Any] = {
-            "systemInstruction": {"parts": [{"text": INSTRUCTIONS}]},
+            "systemInstruction": {"parts": [{"text": instructions}]},
             "contents": [{"role": "user", "parts": [{"text": json.dumps(data)}]}],
             "generationConfig": {
                 "responseFormat": {"text": {"mimeType": "APPLICATION_JSON", "schema": schema}},
@@ -260,40 +308,8 @@ class GeminiSynthesis:
                 for p in parts
             ):
                 raise ValueError("Only output text is accepted")
-            draft = Draft.model_validate_json("".join(p["text"] for p in parts))
+            return "".join(p["text"] for p in parts)
         except (ValidationError, ValueError, TypeError, KeyError, AttributeError) as error:
             raise ServiceError(
                 "MODEL_MALFORMED: Structured output or usage failed validation."
             ) from error
-        if any(not c.text.strip() for c in draft.claims):
-            raise ServiceError("MODEL_MALFORMED: Empty claim text.")
-        generated_text = [*draft.limitations, *(c.text for c in draft.claims)]
-        if any(re.search(r"https?://|www\.|\]\(", text, re.IGNORECASE) for text in generated_text):
-            raise ServiceError("MODEL_LINK: Model-generated URLs or links are not permitted.")
-        if any(not text.strip() or len(text) > 3000 for text in draft.limitations):
-            raise ServiceError("MODEL_MALFORMED: Invalid limitation text.")
-        claims = [
-            Claim(run_id=run.id, display_id=f"C{i:02}", **claim.model_dump())
-            for i, claim in enumerate(draft.claims, 1)
-        ]
-        return Report(
-            run_id=run.id,
-            label=REPORT_LABEL,
-            claims=claims,
-            sections=[
-                Section(title="Question and scope", text=run.input.question),
-                Section(
-                    title="Approach",
-                    text="One Gemini generation using only saved evidence excerpts.",
-                ),
-                Section(title="Findings", text="See evidence-linked claims below."),
-                Section(title="Comparison", text="Comparison claims are marked by section."),
-                Section(title="Limitations", text="\n".join(draft.limitations)),
-                Section(
-                    title="Conclusion", text="Conclusion claims remain subject to source review."
-                ),
-            ],
-            validation_results=[
-                "Evidence IDs and exact quotes validated; semantic support unmeasured."
-            ],
-        )

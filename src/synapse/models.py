@@ -99,6 +99,8 @@ class Run(Model):
     fixture_id: str | None = None
     kind: Literal["fixture", "live"] = "fixture"
     synthesis_config: SynthesisConfig | None = None
+    critique_config: SynthesisConfig | None = None
+    critique_key: str | None = None
     input: RunInput
     state: State = State.QUEUED
     created_at: datetime = Field(default_factory=now)
@@ -112,6 +114,7 @@ class Run(Model):
         "Offline fixture demonstration",
         "Live discovery — report pending",
         "Gemini synthesis — critique pending",
+        "Live research",
     ] = LABEL
 
 
@@ -243,10 +246,10 @@ class Critique(Model):
     report_version: Literal[1] = 1
     scores: list[Annotated[int, Field(strict=True, ge=0, le=2)]] = Field(min_length=5, max_length=5)
     findings: list[Finding]
-    total: int = Field(ge=0, le=10)
+    total: int = Field(strict=True, ge=0, le=10)
     evaluator_model: str = "fixture-v1 (predetermined, not a model evaluation)"
     prompt_version: str = "fixture-v1"
-    label: Literal["Offline fixture demonstration"] = LABEL
+    label: Literal["Offline fixture demonstration", "Model critique — not a fact check"] = LABEL
 
     @model_validator(mode="after")
     def valid_total(self) -> "Critique":
@@ -273,6 +276,7 @@ class Snapshot(Model):
     report: Report | None = None
     critique: Critique | None = None
     synthesis: SynthesisRecord | None = None
+    critique_usage: SynthesisRecord | None = None
     events: list[Event] = Field(default_factory=list)
 
 

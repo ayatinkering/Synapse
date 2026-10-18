@@ -7,7 +7,8 @@ integrity validation; a SQLite-backed run service with one background thread; de
 atomic artifacts and exports; and a native Streamlit UI. S-B adds a direct Tavily adapter, pinned-IP HTTP fetching, bounded DNS resolution,
 BeautifulSoup cleaning, heuristic evidence selection, and per-query/source checkpoints.
 S-C adds explicit Gemini synthesis over saved evidence; the authorized live smoke gate passed.
-Revision, live critique, and benchmark evaluation remain unimplemented.
+S-D1 adds one explicit live critique and completes the four-stage local workflow.
+Revision and benchmark evaluation remain unimplemented.
 
 The fixture catalog is bundled package data. Stage outputs carry schema version 1.
 SQLite uses runs, stage_outputs, and events tables (database schema version 3; transactional migrations from v1/v2).
@@ -46,7 +47,8 @@ Future live-integration modules: `models`, `orchestrator`, `agents/discovery`, `
 
 `queued -> discovering -> analyzing -> synthesizing -> critiquing -> completed`.
 Live discovery stops at `sources_ready` after analysis. Explicit synthesis transitions
-that saved run to `synthesizing -> report_ready`; critique remains absent. Other terminal alternatives:
+that saved run to `synthesizing -> report_ready`; explicit critique then transitions
+`critiquing -> completed`. Other terminal alternatives:
 `failed`, `cancelled`, `insufficient_evidence`.
 
 Assign a persisted run ID before submission. A bounded background worker claims
@@ -190,3 +192,29 @@ and UUID enums; Pydantic text bounds and run-owned evidence/quote validation rem
 mandatory. Controlled probes isolated the UUID enum rejection. HTTP connection/header
 waiting now honors the caller's attempt budget instead of an unrelated five-second cap;
 the watchdog, DNS, remaining deadline and streamed-read limits still apply.
+
+## S-D1 minimal live critique
+
+`submit_critique(run_id, key)` evaluates a saved live report once. The same single
+worker and inference transport serve synthesis and critique. Critique receives only
+saved question/report/source metadata/excerpts, no tools. It returns five ordered
+integer scores (0–2) and at most twelve bounded claim-linked comments. Application code
+calculates their sum and validates ownership/report version; malformed scores, unknown
+claim IDs, blank/oversized comments, links, refusals and budget failures cannot complete.
+The model identity and `critic-v1` prompt version are application-owned metadata.
+
+Critique configuration/key live in the versioned run JSON; an immediate SQLite
+transaction scans the local runs for key conflicts/busy state and claims only
+`report_ready` work. This deliberately avoids another table migration/index for a
+single-user local store. Existing optional-field defaults reopen older databases.
+A separate `critique_usage` output records the same typed usage checkpoints. Report
+content is immutable; failure/cancellation/restart preserve it and existing evidence.
+Validated critique and derived artifacts precede terminal success. Complete live
+exports require all four outputs and validated critique usage.
+
+Server gates: `SYNAPSE_ENABLE_CRITIQUE=1`, `GEMINI_API_KEY`, and the existing free-tier
+confirmation. The UI offers Evaluate report only for eligible saved runs, labels live
+scores as model judgments, and exposes the finding's original claim/excerpts. No
+automatic revision, second critic, parallel framework, or new dependency was added.
+The default configuration is shared with synthesis: Gemini 3.5 Flash-Lite, 8,192 input
+preflight / 2,048 output tokens, 30 seconds/request, minimal thinking, no retries.

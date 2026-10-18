@@ -12,6 +12,7 @@ from uuid import UUID
 
 from filelock import FileLock, Timeout
 
+from synapse.critic import GeminiCritic
 from synapse.discovery import LIVE_LABEL, LiveDiscovery
 from synapse.export import render
 from synapse.fetch import SafeFetcher
@@ -55,6 +56,8 @@ class ResearchService:
         live_enabled: bool = False,
         synthesis: GeminiSynthesis | None = None,
         synthesis_enabled: bool = False,
+        critic: GeminiCritic | None = None,
+        critique_enabled: bool = False,
         limits: Limits | None = None,
         clock: Callable[[], float] = monotonic,
     ) -> None:
@@ -74,6 +77,8 @@ class ResearchService:
         self.stages = stages or FixtureAdapter()
         self.live = LiveDiscovery(search, fetcher or SafeFetcher()) if search else None
         self.live_enabled = live_enabled and self.live is not None
+        self.critic = critic
+        self.critique_enabled = critique_enabled and critic is not None
         self.synthesis = synthesis
         self.synthesis_enabled = synthesis_enabled and synthesis is not None
         self.limits = limits or Limits()
@@ -172,11 +177,30 @@ class ResearchService:
             if independent_sources(snapshot.analysis) < 2 or not snapshot.analysis.evidence:
                 raise ServiceError("EVIDENCE_GAP: Two independent sources and evidence required.")
             if self.store.claim_synthesis(run_id, idempotency_key, self.synthesis.config):
-                self._futures[run_id] = self._executor.submit(self._execute_synthesis, run_id)
+                self._futures[run_id] = self._executor.submit(self._execute_model, run_id)
             return run_id
 
-    def _execute_synthesis(self, run_id: UUID) -> None:
-        assert self.synthesis is not None
+    def submit_critique(self, run_id: UUID, idempotency_key: str) -> UUID:
+        if not idempotency_key.strip() or len(idempotency_key) > 200:
+            raise ServiceError("INVALID_KEY: Submission key must contain 1–200 characters.")
+        with self._guard:
+            if self._closed:
+                raise ServiceError("CLOSED: Application worker is closed.")
+            if not self.critique_enabled or self.critic is None:
+                raise ServiceError("CRITIQUE_DISABLED: Configure Gemini and enable critique.")
+            snapshot = self.get_run(run_id)
+            if snapshot.analysis is None or snapshot.report is None or snapshot.discovery is None:
+                raise ServiceError("NOT_READY: Saved evidence and a report are required.")
+            validate_discovery(snapshot.run, snapshot.discovery)
+            validate_analysis(snapshot.run, snapshot.discovery, snapshot.analysis)
+            validate_report(snapshot.run, snapshot.analysis, snapshot.report)
+            if self.store.claim_critique(run_id, idempotency_key, self.critic.config):
+                self._futures[run_id] = self._executor.submit(self._execute_model, run_id, True)
+            return run_id
+
+    def _execute_model(self, run_id: UUID, critique: bool = False) -> None:
+        stage = "critique" if critique else "report"
+        usage_stage = "critique_usage" if critique else "synthesis"
         started = self.clock()
         try:
             snapshot = self.get_run(run_id)
@@ -189,25 +213,40 @@ class ResearchService:
             )
 
             def save(record: SynthesisRecord) -> None:
-                self.store.update(run_id, stage="synthesis", output=record, checkpoint=True)
+                self.store.update(run_id, stage=usage_stage, output=record, checkpoint=True)
 
             context.remaining()
-            report = Report.model_validate_json(
-                self.synthesis.synthesize(run, analysis, context, save).model_dump_json()
-            )
-            validate_report(run, analysis, report)
+            if critique:
+                assert self.critic is not None and snapshot.report is not None
+                critique_output = Critique.model_validate_json(
+                    self.critic.critique(
+                        run, analysis, snapshot.report, context, save
+                    ).model_dump_json()
+                )
+                usage = self.store.get(run_id).critique_usage
+                assert usage is not None
+                critique_output = critique_output.model_copy(
+                    update={"evaluator_model": usage.model_version or self.critic.config.model}
+                )
+                validate_critique(run, snapshot.report, critique_output)
+                output: Report | Critique = critique_output
+            else:
+                assert self.synthesis is not None
+                output = Report.model_validate_json(
+                    self.synthesis.synthesize(run, analysis, context, save).model_dump_json()
+                )
+                validate_report(run, analysis, output)
             context.remaining()
-            self.store.update(
-                run_id, stage="report", output=report, duration=self.clock() - started
-            )
+            self.store.update(run_id, stage=stage, output=output, duration=self.clock() - started)
             self._artifacts(self.store.get(run_id))
             context.remaining()
-            record = self.store.get(run_id).synthesis
+            saved = self.store.get(run_id)
+            record = saved.critique_usage if critique else saved.synthesis
             assert record is not None
             self.store.update(
                 run_id,
-                State.REPORT_READY,
-                stage="synthesis",
+                State.COMPLETED if critique else State.REPORT_READY,
+                stage=usage_stage,
                 output=record.model_copy(update={"status": "validated"}),
             )
         except StopWork as error:
@@ -222,10 +261,12 @@ class ResearchService:
         except ServiceError as error:
             self._record_failure(run_id, str(error))
         except OSError:
-            self._record_failure(run_id, "STORAGE_ERROR: Could not write synthesis artifacts.")
+            self._record_failure(run_id, "STORAGE_ERROR: Could not write model artifacts.")
         except Exception:
             self._record_failure(
-                run_id, "SYNTHESIS_FAILED: Output validation failed; evidence retained."
+                run_id,
+                f"{'CRITIQUE' if critique else 'SYNTHESIS'}_FAILED: "
+                "Output validation failed; saved outputs retained.",
             )
 
     def get_run(self, run_id: UUID) -> Snapshot:

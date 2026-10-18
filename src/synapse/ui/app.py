@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 import streamlit as st
 
+from synapse.critic import RUBRIC
 from synapse.export import plain, render
 from synapse.models import LABEL, TERMINAL, RunInput, Snapshot, State
 from synapse.service import ResearchService
@@ -32,7 +33,7 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
     st.progress(completed / 4, text=f"{completed}/4 stage outputs saved · {run.state.value}")
     st.caption(run.label)
     if run.state == State.SOURCES_READY:
-        st.success("Sources ready — cited synthesis is available; critique pending")
+        st.success("Sources ready — cited synthesis is available")
         st.caption(
             "Generate one report from these saved excerpts: no new Tavily search. "
             "Gemini token usage is recorded; monetary cost is unavailable."
@@ -52,9 +53,24 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
                 "and SYNAPSE_GEMINI_FREE_TIER=1 after confirming the project uses free quota."
             )
     elif run.state == State.REPORT_READY:
-        st.success("Report ready — critique pending S-D1")
+        st.success("Report ready — critique available")
+        if service.critic:
+            st.json(service.critic.config.model_dump())
+        st.caption(
+            "Evaluate saved claims/evidence once. One Gemini generation; no new search or revision."
+        )
+        if st.button(
+            "Evaluate report", key=f"critique-{run.id}", disabled=not service.critique_enabled
+        ):
+            service.submit_critique(run.id, f"critic-v1:{run.id}")
+            st.rerun()
+        if not service.critique_enabled:
+            st.info(
+                "Enable SYNAPSE_ENABLE_CRITIQUE=1 with GEMINI_API_KEY "
+                "and SYNAPSE_GEMINI_FREE_TIER=1 server-side."
+            )
     elif run.state == State.COMPLETED:
-        st.success("Run completed · all four fixture stages saved")
+        st.success("Run completed · all four stages saved")
     elif run.error:
         st.error(run.error)
     else:
@@ -111,19 +127,16 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
             st.info("No analyzed sources have been saved yet.")
     with critique_tab:
         if snapshot.critique:
-            st.metric("Predetermined fixture score", f"{snapshot.critique.total}/10")
+            st.metric(
+                "Predetermined fixture score" if run.kind == "fixture" else "Model critique score",
+                f"{snapshot.critique.total}/10",
+            )
             st.caption(snapshot.critique.evaluator_model)
             st.table(
                 [
                     {"Dimension": dimension, "Score (0–2)": score}
                     for dimension, score in zip(
-                        [
-                            "Grounding",
-                            "Coverage",
-                            "Source quality/diversity",
-                            "Uncertainty",
-                            "Clarity/actionability",
-                        ],
+                        RUBRIC,
                         snapshot.critique.scores,
                         strict=True,
                     )
@@ -131,11 +144,32 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
             )
             for finding in snapshot.critique.findings:
                 st.text(f"{finding.comment} (claim {finding.claim_id})")
-            st.warning("This fixed score is not an independent evaluation or proof of truth.")
+            st.caption(f"Prompt: {snapshot.critique.prompt_version}")
+            if snapshot.critique.findings and snapshot.report and snapshot.analysis:
+                selected_finding = st.selectbox(
+                    "Inspect a critique finding",
+                    range(len(snapshot.critique.findings)),
+                    format_func=lambda i: f"Finding {i + 1}",
+                    key=f"finding-{run.id}",
+                )
+                finding = snapshot.critique.findings[selected_finding]
+                claim = next(c for c in snapshot.report.claims if c.id == finding.claim_id)
+                st.text(f"{claim.display_id}: {claim.text}")
+                for evidence in snapshot.analysis.evidence:
+                    if evidence.id in claim.evidence_ids:
+                        st.text(f"{evidence.display_id}: {evidence.excerpt}")
+            st.warning(
+                "A model score is not an independent fact check or proof of truth."
+                if run.kind == "live"
+                else "This fixed score is not an independent evaluation or proof of truth."
+            )
         else:
             st.info("No critique has been saved yet.")
     with details_tab:
         st.json(run.model_dump(mode="json"))
+        if snapshot.critique_usage:
+            st.caption("Critique usage; unavailable counts remain unknown. Cost unavailable.")
+            st.json(snapshot.critique_usage.model_dump(mode="json"))
         if snapshot.synthesis:
             st.caption("Gemini token counts; unavailable counts remain unknown. Cost unavailable.")
             st.json(snapshot.synthesis.model_dump(mode="json"))
@@ -211,7 +245,7 @@ if not live:
 else:
     st.info(
         "Live discovery fetches public HTML. Cited synthesis is optional afterward; "
-        "critique is pending S-D1."
+        "critique evaluates the saved report."
     )
     topic = st.text_input("Topic", max_chars=1000, key="topic")
     question = st.text_area("Research question", max_chars=1000, key="question")

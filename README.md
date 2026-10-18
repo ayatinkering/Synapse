@@ -1,170 +1,170 @@
 # Synapse
 
-An inspectable research pipeline: **discovery → analysis → synthesis → critique**.
-Offline demonstrations run entirely on authored synthetic fixtures and need no credentials.
-S-B adds opt-in Tavily discovery and public HTML evidence extraction for user questions.
-Live discovery stops at **sources ready**. S-C adds optional Gemini synthesis over saved
-evidence, ending at **report ready**; live critique remains pending S-D1.
-S-C's bounded Gemini smoke check passed; reports reopen with matching exports.
-The bounded Tavily smoke gate passed; see STATUS for the exact result and limitations.
+[![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![CI](https://github.com/ayatinkering/Synapse/actions/workflows/ci.yml/badge.svg?branch=codex%2Fsynapse-live-critique)](https://github.com/ayatinkering/Synapse/actions/workflows/ci.yml)
 
-Choose the AST-versus-embedding comparison or the sparse-evidence scenario, inspect
-saved source snapshots and exact evidence excerpts, reopen runs, and download
-Markdown/JSON bundles. Critique scores and findings are predetermined demonstrations,
-not model evaluations or evidence of research quality.
+**A local research assistant that turns a question into inspectable sources, a cited report, and a model critique.**
 
-## Setup and launch
+Synapse saves the evidence behind its answers. Open a claim to see the exact excerpt,
+source metadata, and character offsets; reopen the run later or export it as Markdown
+and JSON. An offline demonstration works without API keys.
 
-Install Python 3.12 and [uv](https://docs.astral.sh/uv/getting-started/installation/),
-then run from the repository root:
+## What Synapse Does
+
+| Capability | Behavior |
+|---|---|
+| Discover | Search with Tavily using the question and up to two distinct subquestions |
+| Collect evidence | Fetch public HTML, clean and bound the text, select exact excerpts |
+| Write a report | Use Gemini to generate claims linked to saved evidence |
+| Critique | Score five dimensions and return findings linked to report claims |
+| Inspect and export | Browse sources, claims, findings, limits, usage, and saved runs |
+| Demonstrate offline | Run two synthetic scenarios with predetermined reports and critiques |
+
+A valid citation proves that its excerpt exists in the saved source. It does **not**
+prove the claim is true. A model critique is a review aid, not an independent fact check.
+
+## Core Pipeline
+
+```mermaid
+flowchart LR
+    Q[Question] --> D[Discovery]
+    D --> A[HTML and exact evidence]
+    A --> S[Cited synthesis]
+    S --> C[Critique]
+    D & A & S & C --> DB[(Local SQLite)]
+    DB --> E[Inspect and export]
+```
+
+1. **Discovery:** preview deterministic queries and search public sources. Search
+   snippets are metadata; they cannot become evidence.
+2. **Analysis:** fetch selected pages, remove navigation/scripts/forms, and save up to
+   three excerpts per source using a deterministic relevance heuristic.
+3. **Synthesis:** generate one structured report using the saved question and evidence.
+   Reject invalid evidence IDs, altered quotations, malformed output, and budget violations.
+4. **Critique:** evaluate grounding, coverage, source quality/diversity, uncertainty,
+   and clarity/actionability. Each scores 0–2; the application calculates the total
+   out of 10 and validates every finding's claim ID.
+
+Live stages use explicit buttons: **Start live discovery → Generate cited report →
+Evaluate report**. Each model stage allows one attempt per run, with no automatic retry,
+repair, or revision. Failed or cancelled runs preserve their saved outputs and export
+as incomplete bundles.
+
+## Quick Start
+
+### Requirements
+
+- Python **3.12 or 3.13**
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- Optional for live runs: a **Tavily API key** and a **Gemini API key**
+
+### Install
+
+From your checkout:
 
 ```bash
 uv sync --locked
+```
+
+### Run the Offline Demo
+
+```bash
 uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
 ```
 
-Open the local address printed by Streamlit (normally `http://127.0.0.1:8501`).
-Setup downloads locked dependencies; the fixture workflow itself needs no external
-services. Usage telemetry is disabled in the project Streamlit configuration.
+Open the address printed by Streamlit, usually **http://127.0.0.1:8501**.
+Choose **Offline demonstration**, select a scenario, then press **Start offline run**.
+The comparison scenario completes all four stages; the sparse scenario demonstrates
+an evidence gap. All offline sources, scores, and findings are synthetic.
 
-Default data lives under ignored `data/synapse/`. To use a separate local directory:
+### Run with Live Sources
+
+Put your keys in a local, ignored `.env` file:
+
+```dotenv
+TAVILY_API_KEY=your_tavily_key
+GEMINI_API_KEY=your_gemini_key
+```
+
+The app reads environment variables; it does not automatically load `.env`. In a Bash
+terminal, load your own file and enable the stages before launching:
 
 ```bash
-SYNAPSE_DATA_DIR=/tmp/synapse-demo uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
+set -a
+source .env
+set +a
+export SYNAPSE_ENABLE_LIVE=1
+export SYNAPSE_ENABLE_SYNTHESIS=1
+export SYNAPSE_ENABLE_CRITIQUE=1
+export SYNAPSE_GEMINI_FREE_TIER=1
+uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
 ```
 
-Only one application process may own a data directory, and only one run may be
-queued/running at once. Reruns do not resubmit jobs. On process restart, unfinished
-runs are marked interrupted; their completed stage outputs remain inspectable.
-Fixture cancellation takes effect at stage boundaries. Live runs also check between
-queries, retries, redirects, source/body chunks; an in-flight blocking operation may
-finish before cancellation is observed. There is no automatic resume. Sources already
-checkpointed survive cancellation or interrupted recovery.
+Set the free-tier confirmation only after checking your Gemini project's tier. It is a
+configuration gate, not an enforceable billing cap. Tavily calls and retries can consume
+credits; provider usage is recorded when returned, while monetary cost remains unknown.
+Never enter API keys in research fields or commit them to Git.
 
-## Live discovery (optional)
+Choose **Live discovery**, enter a topic/question and optional subquestions/date filter,
+then review the preview and start. Once sources are ready, generate the report; once
+it is ready, evaluate it. Source failures and missing stages remain visible. No provider
+call starts merely by opening or refreshing a saved run.
 
-Keep the app local. Set `TAVILY_API_KEY` in the launch environment using your local
-secret manager or a private terminal; never paste it into chat or research fields.
-The application does not automatically load `.env` files. Then launch with:
+Default model: **`gemini-3.5-flash-lite`**. To select another compatible model, set
+`SYNAPSE_GEMINI_MODEL` before launch. Restart after changing server configuration.
+Saved runs and the offline demo remain available without credentials.
 
-```bash
-SYNAPSE_ENABLE_LIVE=1 uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
+## Inspecting a Run
+
+- **Report:** read claims and inspect their exact evidence.
+- **Sources & Evidence:** check URLs, failures, dates, truncation, hashes, and snapshots.
+- **Critique:** inspect the five scores, evaluator identity, and claim-linked findings.
+- **Run Details:** inspect configuration, provider usage, and ordered events.
+
+Use **Recent runs** or a run's URL to reopen it. **Download Markdown** and **Download JSON**
+contain the same run, source, evidence, report, and critique data. Missing stages are
+never invented; SQLite can regenerate missing derived export files.
+
+## Storage and Limits
+
+Data lives in ignored `data/synapse/`. Set `SYNAPSE_DATA_DIR` to use another directory.
+One process owns a directory and one job runs at a time. Restart marks unfinished work
+interrupted; there is no automatic resume. Cancellation is cooperative.
+
+| Default limit | Value |
+|---|---|
+| Queries / results per query / selected sources | 3 / 5 / 10 |
+| Cleaned text per source | 3,000 characters |
+| Download / fetch-attempt budget | 2 MB / 15 seconds |
+| Model input preflight / output cap, per stage | 8,192 / 2,048 tokens |
+| Model request / stage-job deadline | 30 / 600 seconds |
+
+Token preflight is an estimate; actual returned usage is checked afterward. Lost or
+cancelled responses can have unknown usage. Search/fetch transient retries are bounded;
+model calls have no retries. Date preferences are search filters, not verified page dates.
+
+## Repository Structure
+
+```text
+src/synapse/
+  models.py          Typed runs, sources, evidence, reports, critiques
+  discovery.py       Query planning and discovery orchestration
+  search.py          Tavily adapter
+  fetch.py           Bounded HTML fetching and evidence extraction
+  network.py         DNS, pinned connections, response/deadline limits
+  synthesis.py       Gemini transport, budgets, and cited report generation
+  critic.py          Five-dimension critique over saved evidence
+  service.py         Single worker and stage submission
+  storage.py         SQLite persistence and recovery
+  export.py          Validated Markdown/JSON exports
+  fixtures/          Bundled offline demonstrations
+  ui/                Streamlit application
+tests/                Offline regressions and opt-in live checks
+docs/                 Requirements, architecture, milestones, verification
 ```
 
-Restart after changing server-side configuration. Choose **Live discovery**, enter a
-topic/question and optional subquestions/date filter, inspect the query preview, then
-press **Start live discovery**. The question and up to two distinct subquestions become
-queries. Date filters are requests to the provider, not verified publication dates.
-Without enablement/key, preview works but live submission is disabled.
-
-Defaults: three basic searches, five results/query, ten selected sources, 3,000 cleaned
-characters/source, 2 MB/response, 15 seconds/fetch attempt, two transient retries, and
-600 seconds/run. Each retry can incur provider charges. Returned credits are recorded;
-missing usage is unknown and monetary cost is unavailable. Search snippets never become
-fetched evidence. Excerpt selection uses term overlap, not a model or semantic judgment.
-
-The service adds `preview_discovery(RunInput)` and `submit_discovery(input, key)` when
-constructed with an enabled `TavilySearch` and optional `SafeFetcher`. Live success is
-`sources_ready`; fewer than two independent sources is `insufficient_evidence`.
-Both export incomplete research bundles; neither manufactures a report or critique.
-Transactional SQLite migrations preserve old runs and backfill submission fingerprints;
-schema v3 adds synthesis idempotency metadata.
-
-An authorized single-query smoke gate exists separately from offline CI:
-
-```bash
-SYNAPSE_LIVE_SMOKE=1 uv run --no-sync pytest -o addopts='--strict-config --strict-markers -ra' -m live -s
-```
-
-Run that command **only after authorization** and secure `TAVILY_API_KEY` configuration.
-It allows at most three potentially chargeable basic search attempts and five fetched
-sources. Results persist under ignored `data/synapse-sb-smoke/`; rerunning against that
-directory reopens the same submission rather than spending again. `SYNAPSE_SMOKE_DATA_DIR`
-can select another directory; changing it can permit another charged run.
-
-## Cited synthesis (S-C)
-
-Use a replacement `GEMINI_API_KEY` in the server environment; never enter credentials
-in research fields. The app does not load `.env` automatically. Confirm your Google
-project's free-tier eligibility before setting the confirmation flag; it does not
-technically prevent billing on a billed project. With the key already exported:
-
-```bash
-SYNAPSE_ENABLE_SYNTHESIS=1 SYNAPSE_GEMINI_FREE_TIER=1 uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
-```
-
-Select an existing live `sources_ready` run and press **Generate cited report**.
-This sends saved question/source metadata/excerpts to Google; it performs no search
-or fetch. Review sensitive content before enabling it. `SYNAPSE_GEMINI_MODEL` selects
-the model (default `gemini-3.5-flash-lite`). Restart after configuration changes.
-Without the flags/key, saved runs remain inspectable and generation is disabled.
-
-The service exposes `submit_synthesis(run_id, idempotency_key)` when constructed with
-an enabled `GeminiSynthesis`. The same key/configuration returns the existing attempt;
-a different request with that key conflicts. Each saved live run permits one synthesis
-attempt, including failures; no automatic retry, fallback, or repair call occurs.
-
-Defaults: input preflight limit 8,192 tokens, output cap 2,048, provider timeout 30 seconds,
-and a new 600-second synthesis deadline. One `countTokens` request estimates the serialized
-instructions/evidence/schema; generation occurs only if it fits. That estimate is not
-an exact full-request billable count. Actual returned usage is checked and persisted;
-excess usage fails validation after the call. Unknown usage/cost remains unknown.
-Generation requests minimal thinking and exposes no tools. Prompt `synthesis-v1` requires
-structured, evidence-linked claims and limitations. Code builds citations and rejects
-unknown/cross-run evidence IDs, altered quotes, model links, malformed output, and
-refused/truncated responses. Citation integrity does not establish factual support.
-
-`report_ready` exports remain **incomplete** because critique is absent. Saved evidence
-survives model errors, cancellation, storage failure, and interrupted recovery.
-The authorized Gemini 3.5 Flash-Lite smoke check passed over saved S-B evidence,
-including reopen/export equivalence. Actual usage was 2,257 input and 690 output tokens
-(0 thinking); see STATUS for prior failures and diagnostic calls. The default was
-updated because Google rejected 2.5 Flash-Lite as unavailable to new users. The provider
-uses the current `responseFormat` JSON schema and REST `MINIMAL` thinking level.
-Evidence IDs use string fields in the provider grammar: Gemini rejected UUID enums.
-Synapse still validates UUID parsing, run ownership, exact quotations and text bounds
-before accepting a report. Provider grammar compatibility never bypasses those checks.
-
-The opt-in check in `tests/test_live_synthesis.py` copies existing S-B evidence using
-SQLite backup and verifies generation/reopen/exports without new searches. Run it only
-with fresh explicit authorization, a configured key, `SYNAPSE_SYNTHESIS_SMOKE=1`, and
-`SYNAPSE_GEMINI_FREE_TIER=1`. `SYNAPSE_SYNTHESIS_DATA_DIR` chooses its ignored copy;
-changing directories can permit a new provider attempt. Preserve failed attempts.
-
-## Inspect and export
-
-- Preview the fixed question, queries, and limits, then press **Start offline run**.
-- Report: inspect the report and select a claim to see its exact evidence.
-- Sources & Evidence: open snapshots, source failures, hashes, and truncation/date labels.
-- Critique: inspect all five rubric scores and claim-linked predetermined findings.
-- Run Details: inspect configuration, typed discovery output, and ordered events.
-- Download Markdown or JSON after completion, cancellation, failure, or an evidence gap.
-  Incomplete exports are labeled and do not invent missing stages.
-
-The run ID in the page URL reopens the saved run after browser refresh. The sidebar
-also lists saved runs. SQLite is authoritative; missing derived source/report files
-are regenerated on export. A different preview scenario does not change the saved
-run currently being inspected.
-
-## Python service
-
-```python
-from pathlib import Path
-from synapse.service import ResearchService
-
-with ResearchService(Path("/tmp/synapse-python-demo")) as service:
-    run_id = service.submit("comparison", idempotency_key="example-1")
-    snapshot = service.wait(run_id)
-    markdown, json_bundle = service.export_run(run_id)
-    print(snapshot.run.state)
-```
-
-Reuse a submission key to retrieve the same run. Reusing it for another scenario
-or different normalized input/limits is an error. `list_fixtures`, `list_runs`, `get_run`, and `cancel` provide inspection
-and cancellation. Do not create a second service for data owned by a running UI.
-Public service errors carry safe codes; arbitrary adapter exceptions are not exported.
-
-## Verification
+## Testing
 
 ```bash
 uv run --no-sync ruff check .
@@ -174,29 +174,21 @@ uv run --no-sync pytest -m 'not live'
 uv build
 ```
 
-CI exercises Python 3.12/3.13, including fixture execution from the built wheel in
-an isolated environment outside the checkout. Tests use temporary real SQLite
-stores, fixture adapters, injected clocks/barriers, subprocess restart checks,
-and Streamlit AppTest. A socket guard catches accidental in-process connections;
-it is not an OS sandbox and does not constrain subprocess networking.
+Default tests run offline with temporary SQLite databases and injected network responses.
+CI checks Python 3.12/3.13 and executes the built wheel outside the checkout. Tests cover
+citation/score validation, budgets, failures, cancellation, persistence, exports, and
+Streamlit interactions. Live tests are opt-in and require separate authorization and
+local credentials. See [STATUS](docs/STATUS.md) for actual commands, model usage, browser
+checks, and limitations; passing tests are not a research-quality benchmark.
 
-`uv.lock` freezes dependencies; `uv.toml` keeps the cache under ignored `.uv-cache/`.
-Installed skills are preserved, versioned, and excluded from owned-code lint/type
-checks and package distributions. No secrets or generated run data belong in Git.
+## Current Scope
 
-## Limits and next steps
+The first four-stage local workflow is implemented. Revision and measured evaluation
+remain future milestones. HTML only: no PDF/OCR, paywall bypass, arbitrary browser
+research, background scheduling, or multi-user hosting. URL/hash deduplication does not
+establish independent authorship. Source extraction and model judgments can be wrong;
+review evidence before relying on a report. Public hosting needs additional access
+controls and constrained network egress.
 
-This is single-user local software. Source independence is based only on
-distinct normalized URLs and text hashes, not actual independent authorship. Matching
-citations/quotes establishes integrity, not semantic support. Fixture runs can finish
-before a user can press Cancel; deterministic service tests exercise cancellation.
-
-S-B's authorized live acceptance gate passed; evidence is tracked in STATUS.
-S-C is implemented and its live acceptance gate passed.
-Model critique (S-D1), revision (S-D2), and measured evaluation (S-E) remain unimplemented. Public hosting requires a constrained egress service and
-access review; the local fetch policy is not a deployment sandbox. PDF, compressed
-responses, nonstandard ports, and access-restricted pages are unsupported.
-
-See [status](docs/STATUS.md), [requirements](docs/PRD.md),
-[build plan](docs/BUILD_PLAN.md), [architecture](docs/ARCHITECTURE.md),
-and [agent instructions](AGENTS.md).
+[Requirements](docs/PRD.md) · [Architecture](docs/ARCHITECTURE.md) ·
+[Build plan](docs/BUILD_PLAN.md) · [Verified status](docs/STATUS.md)

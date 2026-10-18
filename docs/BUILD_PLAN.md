@@ -81,9 +81,16 @@ Requirements: live S06-S07 and constrained synthesis from S02.
   the stored excerpt. Run one authorized model integration smoke check and record
   actual model/configuration/usage. ID validity is separate from semantic support.
 
-## S-D1 — critic and first complete P0 release
+## S-D1 — critic and first complete P0 release (complete)
 
 Requirements: live S08 plus full S01-S11 integration.
+
+- Minimal implementation: explicit `submit_critique` on a saved live `report_ready`
+  run; one bounded Gemini request after count preflight, no retry/revision/search.
+- Shared inference transport/worker, persisted idempotency/configuration/usage, existing
+  five-score contract and claim ownership checks. No new dependencies or SQL tables.
+- Service/export/UI seams reuse the approved boundaries. STATUS records actual offline,
+  live, package and browser verification; evaluation quality is not established.
 
 - Model critique scores grounding, coverage, source quality/diversity, uncertainty,
   and clarity/actionability, each 0-2, with claim-linked findings and evaluator identity.

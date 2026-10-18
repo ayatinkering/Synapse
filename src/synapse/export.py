@@ -2,6 +2,7 @@
 
 import re
 
+from synapse.critic import RUBRIC
 from synapse.models import Snapshot, State
 from synapse.validation import (
     validate_analysis,
@@ -36,6 +37,12 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
         (snapshot.discovery, snapshot.analysis, snapshot.report, snapshot.critique)
     ):
         raise ValueError("Completed run has missing stage outputs")
+    if (
+        run.state == State.COMPLETED
+        and run.kind == "live"
+        and (snapshot.critique_usage is None or snapshot.critique_usage.status != "validated")
+    ):
+        raise ValueError("Completed live run requires validated critique usage")
     if run.state == State.REPORT_READY and (
         snapshot.report is None
         or snapshot.synthesis is None
@@ -170,13 +177,28 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
                 f"publication date unknown: {source.published_at is None}",
                 "",
             ]
+    if snapshot.critique_usage:
+        lines += [
+            "## Critique configuration and usage",
+            "",
+            "Configuration: "
+            + (plain(str(run.critique_config.model_dump())) if run.critique_config else "unknown"),
+            f"Usage: {plain(str(snapshot.critique_usage.model_dump()))}",
+            "Monetary cost: unavailable.",
+            "",
+        ]
     if snapshot.critique:
         lines += [
-            "## Predetermined critique",
+            "## Predetermined critique" if run.kind == "fixture" else "## Model critique",
             "",
             f"Score: {snapshot.critique.total}/10",
             plain(snapshot.critique.evaluator_model),
+            f"Prompt: {plain(snapshot.critique.prompt_version)}",
             "",
+        ]
+        lines += [
+            f"- {dimension}: {score}/2"
+            for dimension, score in zip(RUBRIC, snapshot.critique.scores, strict=True)
         ]
         lines += [f"- {plain(f.comment)} (claim {f.claim_id})" for f in snapshot.critique.findings]
     lines += [
@@ -185,6 +207,8 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
         "",
         "Synthetic evidence and predetermined outputs do not establish research quality."
         if run.kind == "fixture"
+        else "Model critique is not proof of truth; semantic support remains subject to review."
+        if snapshot.critique
         else "Critique pending. Citation integrity does not establish semantic support."
         if snapshot.report
         else "Report and critique pending. Heuristic excerpts do not establish semantic support.",

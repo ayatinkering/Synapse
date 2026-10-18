@@ -151,6 +151,35 @@ class Store:
             self.event(db, run, "submitted", "Synthesis queued over saved evidence; no new search.")
             return True
 
+    def claim_critique(self, run_id: UUID, key: str, config: SynthesisConfig) -> bool:
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            runs = [Run.model_validate_json(p) for (p,) in db.execute("SELECT payload FROM runs")]
+            for saved in runs:
+                if saved.critique_key == key:
+                    if saved.id != run_id or saved.critique_config != config:
+                        raise ServiceError("IDEMPOTENCY_CONFLICT: Different critique request.")
+                    return False
+            run = self.read_run(db, run_id)
+            if run.kind != "live" or run.state != State.REPORT_READY or run.critique_key:
+                raise ServiceError("INVALID_STATE: Evaluate a saved report-ready run once.")
+            if any(saved.state not in TERMINAL for saved in runs):
+                raise ServiceError("BUSY: Another run is active.")
+            run = run.model_copy(
+                update={
+                    "state": State.CRITIQUING,
+                    "critique_key": key,
+                    "critique_config": config,
+                    "label": "Live research",
+                    "cancel_requested": False,
+                    "error": None,
+                    "updated_at": now(),
+                }
+            )
+            db.execute("UPDATE runs SET payload=? WHERE id=?", (run.model_dump_json(), str(run_id)))
+            self.event(db, run, "submitted", "Critique queued over saved report and evidence.")
+            return True
+
     def event(
         self,
         db: sqlite3.Connection,
@@ -256,6 +285,9 @@ class Store:
             report=Report.model_validate_json(outputs["report"]) if "report" in outputs else None,
             synthesis=SynthesisRecord.model_validate_json(outputs["synthesis"])
             if "synthesis" in outputs
+            else None,
+            critique_usage=SynthesisRecord.model_validate_json(outputs["critique_usage"])
+            if "critique_usage" in outputs
             else None,
             critique=Critique.model_validate_json(outputs["critique"])
             if "critique" in outputs
