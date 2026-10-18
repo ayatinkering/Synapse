@@ -2,24 +2,24 @@
 
 Updated: 2026-10-18. Branch: `codex/synapse-cited-synthesis`.
 
-## Current checkpoint — S-C implemented; live acceptance pending
+## Current checkpoint — S-C complete
 
-Implementation commit: `4a06751` on `codex/synapse-cited-synthesis`, based on S-B
-`07a8a56`. User selected Gemini instead of OpenAI and confirmed a replacement local
-key and free-tier project. No secret was committed. Installed skills and dependency
-lockfile are unchanged. No model generation or new Tavily search ran during S-C.
+Implementation: `4a06751`; verified completion/fixes: `6fd1b69`.
+Branch: `codex/synapse-cited-synthesis`, based on S-B `07a8a56`.
+User selected Gemini, confirmed a replacement local key/free-tier project, and later
+requested completion of the previously pending gates. Installed skills, dependency
+lockfile, original S-B evidence and all failed S-C copies are preserved. No new Tavily
+search, merge, deployment, or force push was performed.
 
-Implemented explicit, idempotent `submit_synthesis` over saved live `sources_ready`
-evidence. One count preflight and at most one structured generation; no retry,
-repair, fallback, or synthesis fetch. Configurable Gemini model (default
-`gemini-2.5-flash-lite`), prompt `synthesis-v1`, 8,192 input preflight / 2,048 output
-limits, 30-second provider timeout, thinking disabled. Code validates claims, this
-run's evidence IDs, exact quotes, usage, and generated links. Success ends at
-`report_ready`, visibly incomplete with critique absent. Typed usage checkpoints,
-transactional schema v3 migration/idempotency, failure preservation, report/evidence
-inspection, and matching Markdown/JSON exports are included.
+S-C explicitly synthesizes a saved live `sources_ready` run once, ending at
+`report_ready` with critique absent. Structured claims, this run's evidence IDs,
+exact quotes, text bounds and actual usage validate before normal success. Schema v3
+persists synthesis configuration/idempotency and typed checkpoints. UI reruns cannot
+resubmit an attempt; failures retain saved evidence. Markdown/JSON share full evidence
+UUIDs, source IDs, report version, configuration and usage; exports remain incomplete
+because S-D1 critique is not implemented.
 
-### S-C actual verification
+### Final local verification
 
 | Command/check | Actual result |
 |---|---|
@@ -27,71 +27,92 @@ inspection, and matching Markdown/JSON exports are included.
 | `uv run --no-sync ruff check .` | Passed |
 | `uv run --no-sync ruff format --check .` | 37 files formatted |
 | `uv run --no-sync mypy` | No issues in 31 files |
-| `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --no-sync pytest -m 'not live'` | 100 passed, 2 live deselected in 20.15 seconds |
-| After review: synthesis/UI tests | 26 passed; final disabled-model regression also passed separately |
-| `uv build --offline` | Source distribution and wheel built, including after review fixes |
-| Isolated wheel under `/tmp/synapse-sc-wheel`, executed from `/tmp` | Synthesis imports/contracts, bundled fixture, and matching reopened exports passed |
-| Distribution inspection | New synthesis module included; data, secrets, caches, and skills excluded |
-| `git diff --check`; installed skill/lockfile diff | Passed; preserved |
+| `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --no-sync pytest -m 'not live'` | 102 passed, 2 live deselected in 20.35 seconds |
+| Opt-in `tests/test_live_synthesis.py`, authorized bounded run | 1 passed in 4.98 seconds; reopen/export equivalence verified |
+| `uv build --offline` | Wheel and source distribution built, including after final documentation changes |
+| Isolated installed wheel under `/tmp/synapse-sc-wheel`, executed from `/tmp` | Copied live report reopened and regenerated identical browser exports without provider calls; bundled fixture completed |
+| `git diff --check`; skill/lockfile inspection | Passed; skills and lockfiles unchanged |
 
-Tests use the approved service/export/UI seams and injected external transport.
-They cover generation-once/reopen, unknown and actual cross-run IDs, unsupported
-quotes, malformed/refused/truncated output, quota/network/provider errors, input and
-reported-usage limits, forbidden tools/links, cancellation, deadline, artifact failure,
-visible sanitized HTTP status, gated explicit UI submission, citations, and downloads.
-The artifact failure test correctly expects export to fail until storage is restored;
-it then verifies incomplete artifact regeneration. No acceptance check was weakened.
+Tests retain the approved service/export/UI boundaries and offline network injection.
+They cover malformed/refused/truncated output, unknown/actual cross-run UUIDs, unsupported
+quotes, oversized/empty claims, usage and input budgets, quota/network/provider failures,
+forbidden tools/links, cancellation/deadline, artifact failure/regeneration, gated explicit
+UI submission, exact evidence, downloads and reopen. Regressions failed before fixes for
+the default/wire contract, missing Markdown evidence UUIDs, and the five-second header
+wait overriding the configured provider budget. No application acceptance check was weakened.
 
-Browser verification used **offline synthetic network responses**, not Gemini. Saved
-proof run `ef1a3bf4-2b32-4d9f-93a3-f07d96fede84` under
-`/tmp/synapse-sc-browser/`, served on loopback port 8504. Confirmed three saved stages,
-report-ready/critique-pending labels, exact evidence, and keyboard activation of the
-E01 citation anchor. An actual JSON download matched the run, report, evidence, and
-absent critique. Markdown download control was activated, but no downloaded Markdown
-file was found; actual Markdown browser-download acceptance remains unverified.
-AppTest and service checks verify both export contents/controls. Screenshot:
-`/tmp/synapse-sc-browser.png`. Browser automation was unusually slow.
+### Authorized live result and browser acceptance
 
-### S-C live gate — pending by user choice
+Run: `34fd52bc-e189-45a0-869e-e7010bc20c92`, in ignored
+`data/synapse-sc-smoke-verified/` (SQLite backup of the original S-B evidence).
+One preflight and one generation succeeded, with no automatic retry/search/fetch.
+Model and returned model version: **`gemini-3.5-flash-lite`**; prompt: `synthesis-v1`.
+Preflight estimate: **2,665** tokens; actual input: **2,257**, output: **690**, thinking:
+**0**, total: **2,947**. Limits: 8,192 input / 2,048 output, minimal thinking,
+30 seconds/provider attempt, 600 seconds/stage job. Monetary cost is unavailable;
+free-tier eligibility is the user's confirmed project configuration, not a billing cap.
 
-Both expressly authorized attempts were preserved in ignored copies of the S-B
-SQLite database: `data/synapse-sc-smoke/` and `data/synapse-sc-smoke-retry-1/`.
-Both stopped at token-count preflight, before generation; the second returned
-HTTP 404 `NOT_FOUND`. Evidence remains saved, no automatic retry ran, and output
-usage is unknown. A read-only model catalog request succeeded and listed the default
-model; this does not establish count/generation compatibility.
+The UI on loopback port 8505 reopened that persisted report with new model calls disabled.
+Verified three saved stages, report-ready/critique-pending labels, the generated C01 claim's
+exact E02 excerpt/source offsets, and keyboard activation of the E02 citation anchor.
+Actual browser downloads:
+`~/Downloads/synapse-34fd52bc-e189-45a0-869e-e7010bc20c92 (1).md` and `.json`.
+Both matched the persisted report/source/evidence IDs, exact stored evidence and usage;
+critique stayed absent. Installed-wheel reopening regenerated matching exports in a
+fresh temporary directory with no credentials/provider calls. Screenshot:
+`/tmp/synapse-sc-live-verified.png`. Browser automation was unusually slow; no provider
+calls were made through the browser.
 
-The initial full-request count envelope was replaced with the contents-only shape
-used by Google's official Python SDK for Developer API token counting. A regression
-failed before the fix and passed afterward. It counts serialized instructions,
-evidence, and schema as a preflight **estimate**, not an exact billable prompt count;
-actual returned usage is checked separately after generation. Official references:
-[REST token counting](https://ai.google.dev/api/tokens),
-[Google SDK source](https://github.com/googleapis/python-genai/blob/main/google/genai/models.py).
-This revised wire request has not been verified live. The user explicitly chose
-**Leave live verification pending** instead of authorizing another attempt. Do not
-retry or change smoke directories/idempotency keys to spend again without permission.
+### Preserved failures and compatibility investigation
 
-### Next task and remaining limitations
+Earlier attempts remain under ignored `data/synapse-sc-smoke*/`. Three pipeline copies
+stopped at preflight on the old model; five more preserved provider configuration
+rejections before the successful final copy. The original S-B database was not modified.
+A fixed-word diagnostic count returned Google's explicit explanation that 2.5 Flash-Lite
+is no longer available to new users, despite its presence in model metadata. The default
+was updated to 3.5 Flash-Lite; no automatic fallback was introduced.
 
-Next incomplete milestone: finish S-C's authorized live compatibility gate and actual
-Markdown browser download verification before claiming S-C complete or starting S-D1.
-If authorized later, use saved S-B evidence, preserve both failures, and allow only the
-newly approved request count. Inspect safe provider diagnostics and official contracts
-if it fails; do not guess model availability or add fallback calls.
+Controlled tiny probes isolated a UUID-enum schema rejection: the same report schema
+was accepted when its evidence UUID enum was removed. Nullable-type and extra-property
+variants still failed. The provider grammar now uses inline string IDs and omits
+unsupported string-length keywords; Pydantic and run-owned evidence/quote validators
+still reject invalid outputs. The current `responseFormat.text` configuration and REST
+`MINIMAL` enum are used. Connection/header wait now respects the caller's budget;
+the absolute watchdog and remaining run deadline remain enforced.
 
-No live generation has succeeded, so there is no verified real model version/token
-usage/report. Credentials and enablement are environment-only; `.env` is not autoloaded.
-Free-tier confirmation is not an enforceable billing cap. Preflight estimation cannot
-guarantee the final provider prompt token count. An interrupted/cancelled response may
-have unknown usage despite provider work. Failed attempts cannot resume or regenerate
-the same run automatically. Citation integrity does not prove semantic grounding.
-Live critique, revision, benchmarks, PDF ingestion, and public hosting remain deferred.
+Three successful diagnostic generations reported totals of 12, 2,266 and 23 tokens.
+An earlier 16-output-token diagnostic timed out under the old five-second transport cap;
+its usage is unknown. Rejected requests also lacked usage. Do not interpret the final
+successful run's usage as total session consumption or invent a monetary total. Some
+error-inspection copies show `UNKNOWN` because temporary diagnostics consumed their
+error bodies before the service's allowlisted status parser; raw bodies/keys were not
+persisted. Diagnostic scripts live only under `/tmp` and are not runtime features.
 
-This implementation commit and the subsequent status checkpoint are pushed separately;
-inspect Git/hosted CI for their current publication state. Temporary continuation notes:
-`/tmp/synapse-session-handoff.md`. Read AGENTS and this status, inspect branch/status/remote,
-and rerun relevant verification before relying on these conclusions.
+Official contracts used: [model](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite),
+[REST generation configuration](https://ai.google.dev/api/generate-content),
+[structured output](https://ai.google.dev/gemini-api/docs/generate-content/structured-output),
+[token counting](https://ai.google.dev/api/tokens), and
+[pricing](https://ai.google.dev/gemini-api/docs/pricing).
+
+### Next task and limitations
+
+Next incomplete milestone: **S-D1 — live critic and first complete P0 release**.
+Use BUILD_PLAN/PRD to scope its scores, finding IDs, budgets and integration checks.
+Additional provider calls still require relevant authorization; reuse saved evidence.
+Do not rerun smoke scripts under new directories merely to reproduce this checkpoint.
+
+S-C verifies compatibility/provenance, not semantic correctness or benchmark quality.
+The saved sources include older mirrors and imperfect extraction. Free-tier flags do
+not enforce billing limits. Contents-only preflight is an estimate, not an exact
+billable full-request count; actual usage is checked afterward. Cancellation is
+cooperative and missing responses may have unknown usage. Failed attempts do not
+resume/retry automatically. Credentials are environment-only; `.env` is not autoloaded.
+Live critique, revision, benchmarks, PDF ingestion and public hosting remain deferred.
+
+Prior S-C CI [39126080199](https://github.com/ayatinkering/Synapse/actions/runs/39126080199)
+passed on Python 3.12/3.13; hosted CI for this completion increment is reported separately.
+Read AGENTS and STATUS, inspect Git status/branch/remote, and rerun relevant checks before
+relying on this checkpoint. Temporary handoff: `/tmp/synapse-session-handoff.md`.
 
 ## Historical S-B checkpoint — complete
 
