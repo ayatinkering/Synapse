@@ -6,10 +6,11 @@ S-A implements Pydantic contracts and four typed fixture adapters; deterministic
 integrity validation; a SQLite-backed run service with one background thread; derived
 atomic artifacts and exports; and a native Streamlit UI. S-B adds a direct Tavily adapter, pinned-IP HTTP fetching, bounded DNS resolution,
 BeautifulSoup cleaning, heuristic evidence selection, and per-query/source checkpoints.
-No model generation, revision, or benchmark evaluation is implemented.
+S-C adds explicit Gemini synthesis over saved evidence; live compatibility is pending.
+Revision, live critique, and benchmark evaluation remain unimplemented.
 
 The fixture catalog is bundled package data. Stage outputs carry schema version 1.
-SQLite uses runs, stage_outputs, and events tables (database schema version 2; transactional migration from v1).
+SQLite uses runs, stage_outputs, and events tables (database schema version 3; transactional migrations from v1/v2).
 Connections are short lived and stage/event/state writes share a transaction.
 A filelock ownership lock excludes a second process. One global cached service
 owns the single worker; UI reruns only read status unless Start is pressed.
@@ -44,7 +45,8 @@ Future live-integration modules: `models`, `orchestrator`, `agents/discovery`, `
 ## State, persistence, and concurrency
 
 `queued -> discovering -> analyzing -> synthesizing -> critiquing -> completed`.
-Live discovery stops at `sources_ready` after analysis. Other terminal alternatives:
+Live discovery stops at `sources_ready` after analysis. Explicit synthesis transitions
+that saved run to `synthesizing -> report_ready`; critique remains absent. Other terminal alternatives:
 `failed`, `cancelled`, `insufficient_evidence`.
 
 Assign a persisted run ID before submission. A bounded background worker claims
@@ -105,7 +107,7 @@ process ownership, crash recovery, export regeneration, and AppTest interactions
 UI status polls once per second only while a selected run is active. Terminal views
 have no polling fragment. Both complete and incomplete exports are validated anew.
 S-A has no automatic resumption or concurrent research jobs. The S-B boundary below
-adds opt-in live discovery; report generation and critique remain fixture-only.
+adds opt-in live discovery. S-C below adds generated reports; live critique is deferred.
 
 ## S-B live discovery boundary
 
@@ -142,3 +144,41 @@ Server-side live enablement and a Tavily key are required for new live submissio
 Fixtures and saved live runs remain inspectable without credentials. No provider
 secret or raw provider exception body belongs in stored output. Public deployment,
 model orchestration, full-text/PDF ingestion, and evaluation remain later work.
+
+## S-C synthesis boundary
+
+`submit_synthesis` atomically claims a live sources-ready run, preserving its UUID,
+source/evidence IDs, and discovery outputs. Schema v3 adds a unique synthesis key and
+configuration fingerprint; identical requests return the original attempt, conflicting
+keys fail, and busy/terminal checks occur inside the transaction. One attempt per run,
+including failure; no automatic retry/resume. Startup interruption handling is shared.
+
+`GeminiSynthesis` uses the existing pinned-IP HTTPS transport to fixed Google endpoints;
+model-name validation prevents URL injection. No tools, SDK, new dependencies, Tavily
+calls, or model-selected URLs. Instructions treat all source/question text as untrusted.
+Only question, subquestions, source metadata, and saved excerpts enter the prompt.
+Structured output is bounded and parsed; application-created claim IDs and citations
+must resolve to this run's exact evidence. Quotes are literal substrings. Free-form
+model narrative outside claims/limitations is not rendered. Semantic support is unmeasured.
+
+A contents-only `countTokens` call estimates serialized instructions, evidence and JSON
+schema (aligned with Google's Python SDK Developer API request shape). This estimate
+is not an exact full-request billable token count. Above-limit estimates prevent
+inference; reported generation usage is checked afterward and can reject a report.
+Default model/configuration: Gemini 2.5 Flash-Lite, 8,192 input / 2,048 output tokens,
+30 seconds/request, thinking disabled, no retries. The request watchdog and overall
+600-second deadline remain enforced. Actual provider compatibility is pending.
+
+Versioned synthesis stage checkpoints distinguish started/counting/generating/generated/
+validated states and preserve returned model version and usage. A cancelled/lost response
+can have unknown usage even if the provider generated tokens. Validated reports and
+artifacts are saved before terminal success. Failures retain prior outputs; artifacts
+are regenerable from SQLite. Errors contain static codes and allowlisted HTTP statuses,
+never raw provider error bodies, headers, credentials, or tracebacks. Markdown/JSON
+exports identify model, prompt, configuration, IDs, usage, and pending critique.
+
+The cached service reads server environment enablement, free-tier confirmation, key,
+and optional model ID. These flags are consent/configuration gates, not a billing cap.
+No automatic `.env` loading. UI reruns cannot submit a second attempt; generating uses
+an explicit labeled control. Offline tests exercise the service/export/UI seams with
+injected transport; live provider verification remains a separate authorized gate.

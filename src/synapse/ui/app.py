@@ -32,7 +32,27 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
     st.progress(completed / 4, text=f"{completed}/4 stage outputs saved · {run.state.value}")
     st.caption(run.label)
     if run.state == State.SOURCES_READY:
-        st.success("Sources ready — report and critique not implemented yet")
+        st.success("Sources ready — cited synthesis is available; critique pending")
+        st.caption(
+            "Generate one report from these saved excerpts: no new Tavily search. "
+            "Gemini token usage is recorded; monetary cost is unavailable."
+        )
+        if service.synthesis:
+            st.json(service.synthesis.config.model_dump())
+        if st.button(
+            "Generate cited report",
+            key=f"synthesize-{run.id}",
+            disabled=not service.synthesis_enabled,
+        ):
+            service.submit_synthesis(run.id, f"synthesis-v1:{run.id}")
+            st.rerun()
+        if not service.synthesis_enabled:
+            st.info(
+                "Enable synthesis server-side with GEMINI_API_KEY, SYNAPSE_ENABLE_SYNTHESIS=1 "
+                "and SYNAPSE_GEMINI_FREE_TIER=1 after confirming the project uses free quota."
+            )
+    elif run.state == State.REPORT_READY:
+        st.success("Report ready — critique pending S-D1")
     elif run.state == State.COMPLETED:
         st.success("Run completed · all four fixture stages saved")
     elif run.error:
@@ -71,7 +91,7 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
         if snapshot.analysis:
             for source in snapshot.analysis.sources:
                 with st.expander(f"{source.display_id} · {plain(source.title)} · {source.status}"):
-                    st.caption(source.label)
+                    st.caption(source.label if run.kind == "fixture" else "Fetched HTML snapshot")
                     st.text(f"Original URL: {source.original_url}")
                     st.caption(f"Retrieved: {source.retrieved_at.isoformat()}")
                     st.text(source.final_url)
@@ -116,6 +136,9 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
             st.info("No critique has been saved yet.")
     with details_tab:
         st.json(run.model_dump(mode="json"))
+        if snapshot.synthesis:
+            st.caption("Gemini token counts; unavailable counts remain unknown. Cost unavailable.")
+            st.json(snapshot.synthesis.model_dump(mode="json"))
         st.caption("Persisted actions and statuses; no private model reasoning.")
         st.json([event.model_dump(mode="json") for event in snapshot.events])
         if snapshot.discovery:
@@ -186,7 +209,10 @@ if not live:
         st.json(service.limits.model_dump())
         st.caption("Model: fixture-v1 · 0 provider calls · no credentials required")
 else:
-    st.info("Live discovery fetches public HTML. Report and critique are pending S-C/S-D.")
+    st.info(
+        "Live discovery fetches public HTML. Cited synthesis is optional afterward; "
+        "critique is pending S-D1."
+    )
     topic = st.text_input("Topic", max_chars=1000, key="topic")
     question = st.text_area("Research question", max_chars=1000, key="question")
     subquestions = st.text_area(
@@ -218,7 +244,9 @@ else:
             "Tavily basic search: up to three queries, three attempts per query. "
             "Retries may incur charges. Provider-reported usage is saved; cost unavailable."
         )
-        st.caption("No language model calls. Date filtering does not verify publication dates.")
+        st.caption(
+            "Discovery makes no model calls. Generate a report separately from saved sources."
+        )
     if not service.live_enabled:
         st.warning(
             "Live submission disabled. Configure SYNAPSE_ENABLE_LIVE=1 and "

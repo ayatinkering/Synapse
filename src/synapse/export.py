@@ -36,8 +36,14 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
         (snapshot.discovery, snapshot.analysis, snapshot.report, snapshot.critique)
     ):
         raise ValueError("Completed run has missing stage outputs")
+    if run.state == State.REPORT_READY and (
+        snapshot.report is None
+        or snapshot.synthesis is None
+        or snapshot.synthesis.status != "validated"
+    ):
+        raise ValueError("Report-ready run has missing validated synthesis")
     lines = [
-        "# Synapse report" if run.kind == "fixture" else "# Synapse evidence bundle",
+        "# Synapse report" if snapshot.report else "# Synapse evidence bundle",
         "",
         f"**{plain(run.label)}**",
         "",
@@ -55,6 +61,8 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
                 or (
                     "Discovery and analysis finished; report and critique pending."
                     if run.state == State.SOURCES_READY
+                    else "Report ready; critique pending."
+                    if run.state == State.REPORT_READY
                     else "Run not finished."
                 )
             ),
@@ -89,17 +97,48 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
                         f"credits: {attempt.credits if attempt.credits is not None else 'unknown'}"
                     ]
         lines += [""]
+    if run.synthesis_config:
+        lines += [
+            "## Synthesis configuration and usage",
+            "",
+            f"Model: {plain(run.model_id or 'unknown')}",
+            f"Prompt: {plain(run.prompt_version or 'unknown')}",
+            f"Input token limit: {run.synthesis_config.max_input_tokens}",
+            f"Output token limit: {run.synthesis_config.max_output_tokens}",
+            "Monetary cost: unavailable; free-tier eligibility depends on the project.",
+            "",
+        ]
+        if snapshot.synthesis:
+            lines += [
+                f"- {key}: {plain(str(value))}"
+                for key, value in snapshot.synthesis.model_dump().items()
+                if key != "schema_version"
+            ]
+        lines += [""]
     if snapshot.report:
         lines += [f"Report version: {snapshot.report.version}", ""]
+        evidence_map = {e.id: e for e in snapshot.analysis.evidence} if snapshot.analysis else {}
         for section in snapshot.report.sections:
             lines += [f"## {plain(section.title)}", "", plain(section.text), ""]
-        evidence_map = {e.id: e for e in snapshot.analysis.evidence} if snapshot.analysis else {}
-        for claim in snapshot.report.claims:
-            citations = " ".join(
-                f"[{evidence_map[e].display_id}](#{evidence_map[e].display_id.lower()})"
-                for e in claim.evidence_ids
-            )
-            lines += [f"- **{claim.display_id}** {plain(claim.text)} {citations}"]
+            if run.kind == "live":
+                for claim in snapshot.report.claims:
+                    if claim.section != section.title:
+                        continue
+                    citations = " ".join(
+                        f"[{evidence_map[e].display_id}](#{evidence_map[e].display_id.lower()})"
+                        for e in claim.evidence_ids
+                    )
+                    lines += [
+                        f"- **{claim.display_id}** ({claim.support_status}) "
+                        f"{plain(claim.text)} {citations}"
+                    ]
+        if run.kind == "fixture":
+            for claim in snapshot.report.claims:
+                citations = " ".join(
+                    f"[{evidence_map[e].display_id}](#{evidence_map[e].display_id.lower()})"
+                    for e in claim.evidence_ids
+                )
+                lines += [f"- **{claim.display_id}** {plain(claim.text)} {citations}"]
     if snapshot.analysis:
         lines += ["", "## References and evidence", ""]
         for source in snapshot.analysis.sources:
@@ -144,6 +183,8 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
         "",
         "Synthetic evidence and predetermined outputs do not establish research quality."
         if run.kind == "fixture"
+        else "Critique pending. Citation integrity does not establish semantic support."
+        if snapshot.report
         else "Report and critique pending. Heuristic excerpts do not establish semantic support.",
         "",
     ]

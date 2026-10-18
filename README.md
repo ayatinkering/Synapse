@@ -3,7 +3,9 @@
 An inspectable research pipeline: **discovery → analysis → synthesis → critique**.
 Offline demonstrations run entirely on authored synthetic fixtures and need no credentials.
 S-B adds opt-in Tavily discovery and public HTML evidence extraction for user questions.
-Live runs stop at **sources ready**: report generation and critique remain pending S-C/S-D.
+Live discovery stops at **sources ready**. S-C adds optional Gemini synthesis over saved
+evidence, ending at **report ready**; live critique remains pending S-D1.
+S-C live provider compatibility is pending; two token-count preflights failed before generation.
 The bounded Tavily smoke gate passed; see STATUS for the exact result and limitations.
 
 Choose the AST-versus-embedding comparison or the sparse-evidence scenario, inspect
@@ -65,7 +67,8 @@ The service adds `preview_discovery(RunInput)` and `submit_discovery(input, key)
 constructed with an enabled `TavilySearch` and optional `SafeFetcher`. Live success is
 `sources_ready`; fewer than two independent sources is `insufficient_evidence`.
 Both export incomplete research bundles; neither manufactures a report or critique.
-The SQLite v1-to-v2 migration preserves old runs and backfills submission fingerprints.
+Transactional SQLite migrations preserve old runs and backfill submission fingerprints;
+schema v3 adds synthesis idempotency metadata.
 
 An authorized single-query smoke gate exists separately from offline CI:
 
@@ -78,6 +81,50 @@ It allows at most three potentially chargeable basic search attempts and five fe
 sources. Results persist under ignored `data/synapse-sb-smoke/`; rerunning against that
 directory reopens the same submission rather than spending again. `SYNAPSE_SMOKE_DATA_DIR`
 can select another directory; changing it can permit another charged run.
+
+## Cited synthesis (S-C; live verification pending)
+
+Use a replacement `GEMINI_API_KEY` in the server environment; never enter credentials
+in research fields. The app does not load `.env` automatically. Confirm your Google
+project's free-tier eligibility before setting the confirmation flag; it does not
+technically prevent billing on a billed project. With the key already exported:
+
+```bash
+SYNAPSE_ENABLE_SYNTHESIS=1 SYNAPSE_GEMINI_FREE_TIER=1 uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
+```
+
+Select an existing live `sources_ready` run and press **Generate cited report**.
+This sends saved question/source metadata/excerpts to Google; it performs no search
+or fetch. Review sensitive content before enabling it. `SYNAPSE_GEMINI_MODEL` selects
+the model (default `gemini-2.5-flash-lite`). Restart after configuration changes.
+Without the flags/key, saved runs remain inspectable and generation is disabled.
+
+The service exposes `submit_synthesis(run_id, idempotency_key)` when constructed with
+an enabled `GeminiSynthesis`. The same key/configuration returns the existing attempt;
+a different request with that key conflicts. Each saved live run permits one synthesis
+attempt, including failures; no automatic retry, fallback, or repair call occurs.
+
+Defaults: input preflight limit 8,192 tokens, output cap 2,048, provider timeout 30 seconds,
+and a new 600-second synthesis deadline. One `countTokens` request estimates the serialized
+instructions/evidence/schema; generation occurs only if it fits. That estimate is not
+an exact full-request billable count. Actual returned usage is checked and persisted;
+excess usage fails validation after the call. Unknown usage/cost remains unknown.
+Generation disables thinking and exposes no tools. Prompt `synthesis-v1` requires
+structured, evidence-linked claims and limitations. Code builds citations and rejects
+unknown/cross-run evidence IDs, altered quotes, model links, malformed output, and
+refused/truncated responses. Citation integrity does not establish factual support.
+
+`report_ready` exports remain **incomplete** because critique is absent. Saved evidence
+survives model errors, cancellation, storage failure, and interrupted recovery.
+Provider compatibility has not passed: the authorized attempts failed at token counting,
+with the second returning HTTP 404 `NOT_FOUND`. The SDK-aligned contents-only preflight
+is tested offline but has not been tried live. The user chose to leave this gate pending.
+
+The opt-in check in `tests/test_live_synthesis.py` copies existing S-B evidence using
+SQLite backup and verifies generation/reopen/exports without new searches. Run it only
+with fresh explicit authorization, a configured key, `SYNAPSE_SYNTHESIS_SMOKE=1`, and
+`SYNAPSE_GEMINI_FREE_TIER=1`. `SYNAPSE_SYNTHESIS_DATA_DIR` chooses its ignored copy;
+changing directories can permit a new provider attempt. Preserve failed attempts.
 
 ## Inspect and export
 
@@ -140,8 +187,8 @@ citations/quotes establishes integrity, not semantic support. Fixture runs can f
 before a user can press Cancel; deterministic service tests exercise cancellation.
 
 S-B's authorized live acceptance gate passed; evidence is tracked in STATUS.
-Model synthesis (S-C), model critique (S-D1), revision (S-D2), and measured evaluation
-(S-E) remain unimplemented. Public hosting requires a constrained egress service and
+S-C is implemented with offline verification; its live acceptance gate remains pending.
+Model critique (S-D1), revision (S-D2), and measured evaluation (S-E) remain unimplemented. Public hosting requires a constrained egress service and
 access review; the local fetch policy is not a deployment sandbox. PDF, compressed
 responses, nonstandard ports, and access-restricted pages are unsupported.
 

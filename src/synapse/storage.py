@@ -19,6 +19,8 @@ from synapse.models import (
     Run,
     Snapshot,
     State,
+    SynthesisConfig,
+    SynthesisRecord,
     now,
 )
 
@@ -42,7 +44,7 @@ class Store:
         self.path = directory / "synapse.sqlite3"
         with self.connection() as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version > 2:
+            if version > 3:
                 raise ServiceError("SCHEMA_UNSUPPORTED: Database requires a newer application.")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS runs (
@@ -64,7 +66,13 @@ class Store:
                         "UPDATE runs SET request_fingerprint=? WHERE id=?",
                         (fingerprint(Run.model_validate_json(payload)), run_id),
                     )
-                db.execute("PRAGMA user_version = 2")
+            if version < 3:
+                if version >= 2:
+                    db.execute("BEGIN IMMEDIATE")
+                db.execute("ALTER TABLE runs ADD COLUMN synthesis_key TEXT")
+                db.execute("ALTER TABLE runs ADD COLUMN synthesis_fingerprint TEXT")
+                db.execute("CREATE UNIQUE INDEX synthesis_keys ON runs(synthesis_key)")
+                db.execute("PRAGMA user_version = 3")
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -100,11 +108,48 @@ class Store:
                         "BUSY: Finish or cancel the active run before starting another."
                     )
             db.execute(
-                "INSERT INTO runs VALUES (?, ?, ?, ?)",
+                "INSERT INTO runs (id, request_key, request_fingerprint, payload) "
+                "VALUES (?, ?, ?, ?)",
                 (str(run.id), key, fingerprint(run), run.model_dump_json()),
             )
             self.event(db, run, "submitted", "Research run queued.")
             return run.id, True
+
+    def claim_synthesis(self, run_id: UUID, key: str, config: SynthesisConfig) -> bool:
+        identity = sha256((str(run_id) + config.model_dump_json()).encode()).hexdigest()
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            old = db.execute(
+                "SELECT id, synthesis_fingerprint FROM runs WHERE synthesis_key=?", (key,)
+            ).fetchone()
+            if old:
+                if old != (str(run_id), identity):
+                    raise ServiceError("IDEMPOTENCY_CONFLICT: Different synthesis request.")
+                return False
+            run = self.read_run(db, run_id)
+            if run.kind != "live" or run.state != State.SOURCES_READY:
+                raise ServiceError("INVALID_STATE: Synthesize a saved sources-ready run once.")
+            for (payload,) in db.execute("SELECT payload FROM runs"):
+                if Run.model_validate_json(payload).state not in TERMINAL:
+                    raise ServiceError("BUSY: Another run is active.")
+            run = run.model_copy(
+                update={
+                    "state": State.SYNTHESIZING,
+                    "synthesis_config": config,
+                    "model_id": config.model,
+                    "prompt_version": "synthesis-v1",
+                    "label": "Gemini synthesis — critique pending",
+                    "cancel_requested": False,
+                    "error": None,
+                    "updated_at": now(),
+                }
+            )
+            db.execute(
+                "UPDATE runs SET payload=?, synthesis_key=?, synthesis_fingerprint=? WHERE id=?",
+                (run.model_dump_json(), key, identity, str(run_id)),
+            )
+            self.event(db, run, "submitted", "Synthesis queued over saved evidence; no new search.")
+            return True
 
     def event(
         self,
@@ -209,6 +254,9 @@ class Store:
             if "analysis" in outputs
             else None,
             report=Report.model_validate_json(outputs["report"]) if "report" in outputs else None,
+            synthesis=SynthesisRecord.model_validate_json(outputs["synthesis"])
+            if "synthesis" in outputs
+            else None,
             critique=Critique.model_validate_json(outputs["critique"])
             if "critique" in outputs
             else None,

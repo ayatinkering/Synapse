@@ -61,9 +61,16 @@ Requirements: live S03-S05; retain all S-A checks.
 - Search is an external provider and may incur charges; get relevant authorization
   and credential configuration before live verification.
 
-## S-C — cited synthesis (P0)
+## S-C — cited synthesis (P0; implemented, live gate pending)
 
 Requirements: live S06-S07 and constrained synthesis from S02.
+
+- User selected Gemini and confirmed a free-tier project. No OpenAI integration.
+- Implemented one explicit synthesis attempt over saved `sources_ready` evidence,
+  ending at `report_ready` with critique absent. No retries or new searches.
+- Reuse approved service/export/UI testing boundaries with fake network transport.
+- Offline results, failed live preflights, and pending compatibility gate are in STATUS.
+  Do not advance to S-D1 or spend again without the relevant authorization.
 
 - Add configurable model adapter, versioned prompts, structured output, usage capture,
   token limits, and validated report rendering from the evidence bundle only.

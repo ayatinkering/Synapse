@@ -29,10 +29,12 @@ from synapse.models import (
     RunInput,
     Snapshot,
     State,
+    SynthesisRecord,
 )
 from synapse.network import StopWork, WorkContext
 from synapse.search import TavilySearch
 from synapse.storage import ServiceError, Store
+from synapse.synthesis import GeminiSynthesis
 from synapse.validation import (
     independent_sources,
     validate_analysis,
@@ -51,6 +53,8 @@ class ResearchService:
         search: TavilySearch | None = None,
         fetcher: SafeFetcher | None = None,
         live_enabled: bool = False,
+        synthesis: GeminiSynthesis | None = None,
+        synthesis_enabled: bool = False,
         limits: Limits | None = None,
         clock: Callable[[], float] = monotonic,
     ) -> None:
@@ -70,6 +74,8 @@ class ResearchService:
         self.stages = stages or FixtureAdapter()
         self.live = LiveDiscovery(search, fetcher or SafeFetcher()) if search else None
         self.live_enabled = live_enabled and self.live is not None
+        self.synthesis = synthesis
+        self.synthesis_enabled = synthesis_enabled and synthesis is not None
         self.limits = limits or Limits()
         self.clock = clock
         self._guard = RLock()
@@ -147,6 +153,80 @@ class ResearchService:
             if created:
                 self._futures[run_id] = self._executor.submit(self._execute, run_id)
             return run_id
+
+    def submit_synthesis(self, run_id: UUID, idempotency_key: str) -> UUID:
+        if not idempotency_key.strip() or len(idempotency_key) > 200:
+            raise ServiceError("INVALID_KEY: Submission key must contain 1–200 characters.")
+        with self._guard:
+            if self._closed:
+                raise ServiceError("CLOSED: Application worker is closed.")
+            if not self.synthesis_enabled or self.synthesis is None:
+                raise ServiceError(
+                    "SYNTHESIS_DISABLED: Configure Gemini and enable synthesis server-side."
+                )
+            snapshot = self.get_run(run_id)
+            if snapshot.discovery is None or snapshot.analysis is None:
+                raise ServiceError("EVIDENCE_GAP: Saved discovery and analysis required.")
+            validate_discovery(snapshot.run, snapshot.discovery)
+            validate_analysis(snapshot.run, snapshot.discovery, snapshot.analysis)
+            if independent_sources(snapshot.analysis) < 2 or not snapshot.analysis.evidence:
+                raise ServiceError("EVIDENCE_GAP: Two independent sources and evidence required.")
+            if self.store.claim_synthesis(run_id, idempotency_key, self.synthesis.config):
+                self._futures[run_id] = self._executor.submit(self._execute_synthesis, run_id)
+            return run_id
+
+    def _execute_synthesis(self, run_id: UUID) -> None:
+        assert self.synthesis is not None
+        started = self.clock()
+        try:
+            snapshot = self.get_run(run_id)
+            run, analysis = snapshot.run, snapshot.analysis
+            assert analysis is not None
+            context = WorkContext(
+                clock=self.clock,
+                deadline=started + run.limits.deadline_seconds,
+                cancelled=lambda: self.store.get(run_id).run.cancel_requested,
+            )
+
+            def save(record: SynthesisRecord) -> None:
+                self.store.update(run_id, stage="synthesis", output=record, checkpoint=True)
+
+            context.remaining()
+            report = Report.model_validate_json(
+                self.synthesis.synthesize(run, analysis, context, save).model_dump_json()
+            )
+            validate_report(run, analysis, report)
+            context.remaining()
+            self.store.update(
+                run_id, stage="report", output=report, duration=self.clock() - started
+            )
+            self._artifacts(self.store.get(run_id))
+            context.remaining()
+            record = self.store.get(run_id).synthesis
+            assert record is not None
+            self.store.update(
+                run_id,
+                State.REPORT_READY,
+                stage="synthesis",
+                output=record.model_copy(update={"status": "validated"}),
+            )
+        except StopWork as error:
+            try:
+                self.store.update(
+                    run_id,
+                    State.CANCELLED if str(error) == "CANCELLED" else State.FAILED,
+                    error=f"{error}: Saved evidence retained.",
+                )
+            except ServiceError:
+                self._storage_failure = True
+        except ServiceError as error:
+            self._record_failure(run_id, str(error))
+        except OSError:
+            self._record_failure(run_id, "STORAGE_ERROR: Could not write synthesis artifacts.")
+        except Exception:
+            self._record_failure(
+                run_id, "SYNTHESIS_FAILED: Output validation failed; evidence retained."
+            )
 
     def get_run(self, run_id: UUID) -> Snapshot:
         if self._storage_failure:
@@ -340,9 +420,7 @@ class ResearchService:
         if snapshot.analysis:
             for source in snapshot.analysis.sources:
                 self._atomic_write(root / "sources" / f"{source.id}.txt", source.extracted_text)
-        self._atomic_write(
-            root / ("report-v1.md" if snapshot.run.kind == "fixture" else "evidence.md"), markdown
-        )
+        self._atomic_write(root / ("report-v1.md" if snapshot.report else "evidence.md"), markdown)
         self._atomic_write(root / "bundle.json", bundle)
         return markdown, bundle
 

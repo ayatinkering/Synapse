@@ -28,13 +28,21 @@ class State(StrEnum):
     SYNTHESIZING = "synthesizing"
     CRITIQUING = "critiquing"
     SOURCES_READY = "sources_ready"
+    REPORT_READY = "report_ready"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
     INSUFFICIENT = "insufficient_evidence"
 
 
-TERMINAL = {State.COMPLETED, State.FAILED, State.CANCELLED, State.INSUFFICIENT, State.SOURCES_READY}
+TERMINAL = {
+    State.COMPLETED,
+    State.FAILED,
+    State.CANCELLED,
+    State.INSUFFICIENT,
+    State.SOURCES_READY,
+    State.REPORT_READY,
+}
 
 
 class RunInput(Model):
@@ -69,10 +77,28 @@ class Limits(Model):
     transient_retries: int = Field(default=2, ge=0, le=2)
 
 
+class SynthesisConfig(Model):
+    model: str = Field(default="gemini-2.5-flash-lite", pattern=r"^gemini-[a-z0-9.-]+$")
+    max_input_tokens: int = Field(default=8192, ge=1, le=100_000)
+    max_output_tokens: int = Field(default=2048, ge=128, le=8192)
+    timeout_seconds: int = Field(default=30, ge=1, le=120)
+
+
+class SynthesisRecord(Model):
+    status: Literal["started", "counted", "generating", "generated", "validated"]
+    counted_input_tokens: int | None = Field(default=None, ge=0)
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    thinking_tokens: int | None = Field(default=None, ge=0)
+    total_tokens: int | None = Field(default=None, ge=0)
+    model_version: str | None = None
+
+
 class Run(Model):
     id: UUID = Field(default_factory=uuid4)
     fixture_id: str | None = None
     kind: Literal["fixture", "live"] = "fixture"
+    synthesis_config: SynthesisConfig | None = None
     input: RunInput
     state: State = State.QUEUED
     created_at: datetime = Field(default_factory=now)
@@ -82,7 +108,11 @@ class Run(Model):
     prompt_version: str | None = "fixture-v1"
     cancel_requested: bool = False
     error: str | None = None
-    label: Literal["Offline fixture demonstration", "Live discovery — report pending"] = LABEL
+    label: Literal[
+        "Offline fixture demonstration",
+        "Live discovery — report pending",
+        "Gemini synthesis — critique pending",
+    ] = LABEL
 
 
 class Attempt(Model):
@@ -184,6 +214,8 @@ class Claim(Model):
     text: str
     evidence_ids: list[UUID]
     requires_evidence: bool = True
+    section: Literal["Findings", "Comparison", "Conclusion"] = "Findings"
+    support_status: Literal["cited", "interpretation"] = "cited"
     quote: str | None = None
 
 
@@ -198,7 +230,7 @@ class Report(Model):
     sections: list[Section]
     claims: list[Claim]
     validation_results: list[str] = Field(default_factory=list)
-    label: Literal["Offline fixture demonstration"] = LABEL
+    label: Literal["Offline fixture demonstration", "Generated report — critique pending"] = LABEL
 
 
 class Finding(Model):
@@ -240,6 +272,7 @@ class Snapshot(Model):
     analysis: Analysis | None = None
     report: Report | None = None
     critique: Critique | None = None
+    synthesis: SynthesisRecord | None = None
     events: list[Event] = Field(default_factory=list)
 
 
