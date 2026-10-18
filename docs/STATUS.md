@@ -2,6 +2,26 @@
 
 Updated: 2026-10-18. Branch: `codex/synapse-offline-pipeline`.
 
+## Session checkpoint
+
+Verified baseline commit: `6442e600cf13e2766bfbb7df6b83222b0005d461`, pushed to
+`origin/codex/synapse-offline-pipeline`. The working tree was clean before this
+documentation update. Its [CI run](https://github.com/ayatinkering/Synapse/actions/runs/39120229397)
+completed successfully. Application checks below describe the verified S-A code;
+they were not rerun for this documentation-only checkpoint.
+
+Next session: read [AGENTS.md](../AGENTS.md) and this file, inspect `git status
+--short --branch`, `git log -5 --oneline`, and the remote, then verify the current
+code and relevant checks before relying on this session's conclusions. Consult
+[BUILD_PLAN.md](BUILD_PLAN.md), [PRD.md](PRD.md), and
+[ARCHITECTURE.md](ARCHITECTURE.md) before continuing the next incomplete milestone.
+The next task is to plan S-B's real discovery and safe-fetching boundaries; S-B
+implementation and provider calls have not been authorized by this session close.
+
+Continuation notes prepared with the handoff skill are at
+`/tmp/synapse-session-handoff.md`. That temporary file may disappear; the linked
+repository artifacts and Git history remain authoritative.
+
 ## S-A — complete (offline fixture milestone)
 
 The user approved curated demos and all public testing boundaries. Implemented:
@@ -73,7 +93,8 @@ Generated demo runs remain under ignored `data/synapse/`.
 - Final implementation CI: [39120120243](https://github.com/ayatinkering/Synapse/actions/runs/39120120243), success.
   Both Python 3.12 and 3.13 jobs passed frozen setup, lint/format, strict typing,
   all 38 offline tests, builds, and the installed-wheel fixture smoke check.
-- This final status-only commit records implementation evidence; it changes no code or tests.
+- Status checkpoint: `6442e60`; its CI also passed. The session-close update changes
+  documentation only.
 - The empty repository's first pushed branch, `codex/synapse-foundation`, remains
   its default. No merge, default-branch setting change, deployment, or force push.
 
