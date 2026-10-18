@@ -5,10 +5,17 @@ build-backend = "hatchling.build"
 [project]
 name = "synapse-research"
 version = "0.1.0"
-description = "An inspectable, evidence-grounded research assistant (foundation stage)."
+description = "An inspectable research pipeline with offline fixture demonstrations."
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
-dependencies = []
+dependencies = [
+    "beautifulsoup4>=4.14,<5",
+    "dnspython>=2.8,<3",
+    "filelock>=3,<4",
+    "pydantic>=2,<3",
+    "streamlit>=1.57,<2",
+    "urllib3>=2.6,<3",
+]
 
 [project.scripts]
 synapse = "synapse.cli:main"

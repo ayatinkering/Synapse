@@ -4,7 +4,7 @@ Only one milestone is active at a time. A checkpoint is complete only when its
 observable acceptance checks have run and STATUS records the evidence. This plan
 implements PRD S01-S15; P1/P2 work must not silently become a P0 release claim.
 
-## M0 — engineering foundation (current increment)
+## M0 — engineering foundation (complete)
 
 - Create Synapse-only requirements, architecture, progress, and development agreement.
 - Bootstrap an installable Python package without runtime/provider dependencies.
@@ -15,7 +15,7 @@ implements PRD S01-S15; P1/P2 work must not silently become a P0 release claim.
   and ignore rules; commit/push to a `codex/` branch. Report hosted CI separately.
 - Boundary: package health checks are not an implementation of S-A or a live research run.
 
-## S-A — deterministic fixture pipeline (P0 foundation)
+## S-A — deterministic fixture pipeline (complete offline milestone)
 
 Requirements: S01-S02, fixture implementations of S03-S08, S09-S11.
 
@@ -32,14 +32,23 @@ Requirements: S01-S02, fixture implementations of S03-S08, S09-S11.
   cancellation, interrupted work, and stage failure retain inspectable artifacts;
   a UI rerun cannot create duplicate jobs. Verify UI labels and keyboard-accessible
   controls manually or in a browser, alongside service tests.
-- Suggested test boundaries: public input validation, run service, storage reopen,
-  evidence/citation validator, exporter, and UI submission. Confirm these in the
-  S-A plan if using the installed TDD workflow. They are proposals, not recorded approval.
+- Approved test boundaries (2026-10-18): public input validation, run service, storage reopen,
+  evidence/citation validator, exporter, and UI submission. These are recorded in the
+  accepted S-A plan. The user approved all these boundaries.
 - No paid calls or live providers. A fixture rubric is not a measured model critique.
 
-## S-B — real discovery and analysis (P0)
+## S-B — real discovery and analysis (P0; complete)
 
 Requirements: live S03-S05; retain all S-A checks.
+
+- Approved implementation: deterministic question/subquestion planning and heuristic
+  excerpts, no language model calls. Live runs stop at terminal `sources_ready`;
+  report and critique remain absent. Fixture demonstrations retain all four stages.
+- Approved testing boundaries: search adapter, fetch/extraction tool, service/exports,
+  and UI. Offline network/DNS/clock injection verifies budgets and failures; authorized
+  live verification separately establishes provider compatibility.
+- Implementation and actual verification evidence are tracked in STATUS. The authorized
+  single-query live gate passed; further charged runs require relevant authorization.
 
 - Integrate Tavily and bounded public HTML fetching/BeautifulSoup extraction.
 - Enforce search caps, deduplication, timeouts, response limits, redirects, retry
@@ -52,9 +61,17 @@ Requirements: live S03-S05; retain all S-A checks.
 - Search is an external provider and may incur charges; get relevant authorization
   and credential configuration before live verification.
 
-## S-C — cited synthesis (P0)
+## S-C — cited synthesis (P0; complete)
 
 Requirements: live S06-S07 and constrained synthesis from S02.
+
+- User selected Gemini and confirmed a free-tier project. No OpenAI integration.
+- Implemented one explicit synthesis attempt over saved `sources_ready` evidence,
+  ending at `report_ready` with critique absent. No retries or new searches.
+- Reuse approved service/export/UI testing boundaries with fake network transport.
+- Offline results, preserved failures, and the successful Gemini 3.5 Flash-Lite smoke
+  gate are in STATUS. S-D1 is the next milestone; further provider calls still require
+  relevant authorization.
 
 - Add configurable model adapter, versioned prompts, structured output, usage capture,
   token limits, and validated report rendering from the evidence bundle only.
@@ -64,9 +81,16 @@ Requirements: live S06-S07 and constrained synthesis from S02.
   the stored excerpt. Run one authorized model integration smoke check and record
   actual model/configuration/usage. ID validity is separate from semantic support.
 
-## S-D1 — critic and first complete P0 release
+## S-D1 — critic and first complete P0 release (complete)
 
 Requirements: live S08 plus full S01-S11 integration.
+
+- Minimal implementation: explicit `submit_critique` on a saved live `report_ready`
+  run; one bounded Gemini request after count preflight, no retry/revision/search.
+- Shared inference transport/worker, persisted idempotency/configuration/usage, existing
+  five-score contract and claim ownership checks. No new dependencies or SQL tables.
+- Service/export/UI seams reuse the approved boundaries. STATUS records actual offline,
+  live, package and browser verification; evaluation quality is not established.
 
 - Model critique scores grounding, coverage, source quality/diversity, uncertainty,
   and clarity/actionability, each 0-2, with claim-linked findings and evaluator identity.

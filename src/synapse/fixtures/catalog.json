@@ -1,0 +1,21 @@
+[
+  {
+    "id": "comparison",
+    "name": "AST versus embedding retrieval",
+    "input": {
+      "topic": "Repository retrieval for coding agents",
+      "question": "How do AST-based and embedding-based repository retrieval differ in these synthetic examples?",
+      "subquestions": ["What limitations does each example illustrate?"]
+    },
+    "queries": ["synthetic AST retrieval example", "synthetic embedding retrieval example"]
+  },
+  {
+    "id": "sparse",
+    "name": "Evidence gap: only one usable source",
+    "input": {
+      "topic": "Repository retrieval with sparse evidence",
+      "question": "Can these synthetic sources support a comparison?"
+    },
+    "queries": ["synthetic sparse retrieval example"]
+  }
+]
