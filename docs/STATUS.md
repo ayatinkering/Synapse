@@ -1,26 +1,97 @@
 # Synapse status
 
-Updated: 2026-10-18. Branch: `codex/synapse-offline-pipeline`.
+Updated: 2026-10-18. Branch: `codex/synapse-live-discovery`.
 
-## Session checkpoint
+## Current checkpoint — S-B implemented; live acceptance pending
 
-Verified baseline commit: `6442e600cf13e2766bfbb7df6b83222b0005d461`, pushed to
-`origin/codex/synapse-offline-pipeline`. The working tree was clean before this
-documentation update. Its [CI run](https://github.com/ayatinkering/Synapse/actions/runs/39120229397)
-completed successfully. Application checks below describe the verified S-A code;
-they were not rerun for this documentation-only checkpoint.
+Implementation commit: `6cbbe2148a01a60489d2254345bfa778a3f300f9`, pushed to
+`origin/codex/synapse-live-discovery`. Based on S-A checkpoint `ae4142c`.
+Hosted [CI 39122297374](https://github.com/ayatinkering/Synapse/actions/runs/39122297374)
+succeeded on Python 3.12 and 3.13, including setup, lint, formatting, mypy, offline
+tests, distributions, and an installed-wheel fixture run outside the checkout.
 
-Next session: read [AGENTS.md](../AGENTS.md) and this file, inspect `git status
---short --branch`, `git log -5 --oneline`, and the remote, then verify the current
-code and relevant checks before relying on this session's conclusions. Consult
-[BUILD_PLAN.md](BUILD_PLAN.md), [PRD.md](PRD.md), and
-[ARCHITECTURE.md](ARCHITECTURE.md) before continuing the next incomplete milestone.
-The next task is to plan S-B's real discovery and safe-fetching boundaries; S-B
-implementation and provider calls have not been authorized by this session close.
+Implemented deterministic query preview, explicit fixture/live identity, request
+fingerprints, Tavily basic search with persisted attempts/usage, pinned-IP public HTML
+fetching, bounded DNS/redirects/retries/streaming, cleaned snapshots, heuristic exact
+evidence, per-source SQLite checkpoints, and terminal `sources_ready`. UI previews,
+source inspection, history/deep links, and incomplete Markdown/JSON exports work
+without inventing synthesis or critique. Server-side key/enablement gates new live
+submissions. Existing skills and lockfile were preserved.
 
-Continuation notes prepared with the handoff skill are at
-`/tmp/synapse-session-handoff.md`. That temporary file may disappear; the linked
-repository artifacts and Git history remain authoritative.
+### S-B verification performed
+
+| Command/check | Actual result |
+|---|---|
+| `uv sync --locked` | Passed; 54 packages resolved, 52 checked |
+| `uv run --no-sync ruff check .` | Passed |
+| `uv run --no-sync ruff format --check .` | 34 files formatted |
+| `uv run --no-sync mypy` | No issues in 28 source/test files |
+| `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --no-sync pytest -m 'not live'` | 79 passed, 1 live test deselected |
+| `uv build` and final `uv build --offline` | Source distribution and wheel built; initial sandbox registry failure was retried with network permission |
+| Isolated wheel in `/tmp/synapse-sb-wheel`, script executed from `/tmp` | New adapter imports, query preview, fixture completion, and matching reopened exports passed |
+| Distribution archive inspection | Adapters/UI/fixture resources included; local data, caches, environment, and skills excluded |
+| Authored S-A schema test and actual original database copied to temporary storage | Both original runs and all six stage outputs preserved; original database unchanged |
+| `git diff --check`; skill diff inspection | Passed; no changes to `.agents/skills` or `skills-lock.json` |
+
+New tests cover query/response limits, ranks/snippets/usage, visible retries/backoff,
+malformed responses, authentication/quota stops, duplicate normalized URLs, partial
+query failures, exact cleaned evidence, truncation/date metadata, unsafe IPv4/IPv6 and
+mixed DNS, redirect rebinding/downgrade/caps, unsupported MIME/encoding, denied access,
+streamed/declared size caps, slow streams, TLS configuration/failure, source checkpoints,
+cancellation/deadlines, and migrated/reopened exports. All S-A checks remain in place.
+TLS configuration/failure tests inject the external library boundary; live TLS/provider
+compatibility still needs the authorized smoke run.
+
+TDD regressions reproduced missing preview/submission interfaces, missing in-flight
+search checkpoints, duplicate trailing-slash fetches, incomplete Markdown provenance,
+and stale browser history labels. Fixes passed their affected checks. Review also
+kept artifact writes ahead of terminal success and escaped untrusted UI titles.
+
+### S-B real-browser evidence
+
+Launched on loopback `http://127.0.0.1:8502`, using isolated
+`/tmp/synapse-sb-browser/` data. Verified live question preview and disabled submission
+without credentials, keyboard traversal, keyboard-started fixture completion, source
+provenance/exact excerpts, history selection, and actual Markdown/JSON downloads.
+Downloaded run/source IDs and exact excerpts matched. A real-browser download rerun
+exposed volatile history labels being sent as a run link; stable labels plus UUID
+validation fixed this, and another download retained the correct run URL.
+
+Browser fixture run: `75e5b1ff-5cd9-4ca0-a7ad-8b672d2d31a4`.
+Screenshot: `/tmp/synapse-sb-browser.png`. Browser checks used synthetic fixture data,
+not a Tavily result. Five AppTests additionally cover saved live-source inspection,
+missing-credential submission gating, rerun/history, errors, and download controls.
+
+### Authorization, remaining limitations, and next task
+
+The user explicitly authorized **one** Tavily smoke run for “Python ast module official
+documentation syntax trees,” capped at three potentially chargeable basic-search
+attempts and five fetched sources. Do not ask for that authorization again. No key
+was present in the launch environment or local `.env`/`.env.local`/Streamlit secrets
+when checked. A secure local-key configuration request is pending; never request or
+print a key in chat. No provider calls have been made in this S-B session yet.
+
+Next task: once the key is configured locally, execute the opt-in smoke check documented
+in README. It uses ignored `data/synapse-sb-smoke/` and a persisted idempotency key, so
+rechecking that directory must reopen the same run. Do not change the directory/key
+or launch a second charged run without further authorization. Inspect actual source
+failures, reopen/export the result, and verify browser inspection/downloads for that
+saved run. Until then S-B's live acceptance gate remains pending; do not start S-C.
+
+S-B selects excerpts heuristically; it does not establish semantic support. Publication
+metadata can be unknown or inaccurate. Source independence is URL/hash based, not
+independent authorship. HTML only; compressed responses, nonstandard ports, PDF/OCR,
+model planning/synthesis/critique, cache reuse, and benchmarks are out of scope.
+Cancellation is cooperative, and public hosting still requires constrained egress.
+No merge, deployment, force push, or OpenAI calls were performed.
+
+### Next-session protocol
+
+Read [AGENTS.md](../AGENTS.md) and this file, inspect `git status --short --branch`,
+recent commits and the remote, then verify actual state/relevant checks before relying
+on this checkpoint. Consult [BUILD_PLAN.md](BUILD_PLAN.md), [PRD.md](PRD.md),
+[ARCHITECTURE.md](ARCHITECTURE.md), and [README.md](../README.md) for existing decisions.
+Temporary handoff notes: `/tmp/synapse-session-handoff.md`; they may disappear.
 
 ## S-A — complete (offline fixture milestone)
 
@@ -107,6 +178,5 @@ fast fixtures may finish before a person presses Cancel. Local single-user use o
 no automatic resume, concurrent jobs, revisions, or published evaluation metrics.
 The offline socket guard is a tripwire, not a process/network security sandbox.
 
-S-B (real discovery and safe fetching) is next, but is not started. Live provider
-integration and paid calls require a separately authorized milestone and credential
-configuration. No OpenAI/Tavily calls, provider keys, or research claims were added.
+The S-A checkpoint above is historical. S-B implementation and its pending live
+acceptance gate are recorded at the top of this file. S-C remains unstarted.
