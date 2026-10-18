@@ -37,7 +37,7 @@ Requirements: S01-S02, fixture implementations of S03-S08, S09-S11.
   accepted S-A plan. The user approved all these boundaries.
 - No paid calls or live providers. A fixture rubric is not a measured model critique.
 
-## S-B — real discovery and analysis (P0; live acceptance pending)
+## S-B — real discovery and analysis (P0; complete)
 
 Requirements: live S03-S05; retain all S-A checks.
 
@@ -47,8 +47,8 @@ Requirements: live S03-S05; retain all S-A checks.
 - Approved testing boundaries: search adapter, fetch/extraction tool, service/exports,
   and UI. Offline network/DNS/clock injection verifies budgets and failures; authorized
   live verification separately establishes provider compatibility.
-- Implementation and actual verification evidence are tracked in STATUS. S-B is not
-  complete until its authorized live gate passes.
+- Implementation and actual verification evidence are tracked in STATUS. The authorized
+  single-query live gate passed; further charged runs require relevant authorization.
 
 - Integrate Tavily and bounded public HTML fetching/BeautifulSoup extraction.
 - Enforce search caps, deduplication, timeouts, response limits, redirects, retry

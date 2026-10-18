@@ -2,7 +2,7 @@
 
 Updated: 2026-10-18. Branch: `codex/synapse-live-discovery`.
 
-## Current checkpoint — S-B implemented; live acceptance pending
+## Current checkpoint — S-B complete
 
 Implementation commit: `6cbbe2148a01a60489d2254345bfa778a3f300f9`, pushed to
 `origin/codex/synapse-live-discovery`. Based on S-A checkpoint `ae4142c`.
@@ -62,21 +62,36 @@ Screenshot: `/tmp/synapse-sb-browser.png`. Browser checks used synthetic fixture
 not a Tavily result. Five AppTests additionally cover saved live-source inspection,
 missing-credential submission gating, rerun/history, errors, and download controls.
 
-### Authorization, remaining limitations, and next task
+### Authorized live verification
 
-The user explicitly authorized **one** Tavily smoke run for “Python ast module official
-documentation syntax trees,” capped at three potentially chargeable basic-search
-attempts and five fetched sources. Do not ask for that authorization again. No key
-was present in the launch environment or local `.env`/`.env.local`/Streamlit secrets
-when checked. A secure local-key configuration request is pending; never request or
-print a key in chat. No provider calls have been made in this S-B session yet.
+The user authorized the bounded run and configured the ignored local `.env` key.
+Executed the documented opt-in live pytest check using only that variable from the
+local file: **1 passed, 79 deselected in 59.20 seconds**. No key was printed or tracked.
+The single query had an initial DNS timeout, then a successful search reporting
+**1.0 credit**. Four sources fetched, one source failed with `NETWORK_ERROR`, and
+12 exact evidence excerpts were saved. The run ended at `sources_ready`; reopening
+reproduced equivalent exports without another search.
 
-Next task: once the key is configured locally, execute the opt-in smoke check documented
-in README. It uses ignored `data/synapse-sb-smoke/` and a persisted idempotency key, so
-rechecking that directory must reopen the same run. Do not change the directory/key
-or launch a second charged run without further authorization. Inspect actual source
-failures, reopen/export the result, and verify browser inspection/downloads for that
-saved run. Until then S-B's live acceptance gate remains pending; do not start S-C.
+Saved run: `34fd52bc-e189-45a0-869e-e7010bc20c92`, under ignored
+`data/synapse-sb-smoke/`. The UI at loopback port 8503 reopened it without enabling
+new live submissions. Browser inspection showed success/failure states, capped text,
+unknown dates, evidence, absent report/critique, and two saved stages. Actual browser
+Markdown/JSON downloads matched the persisted run/source IDs and exact excerpts;
+exports remained explicitly incomplete. Screenshot: `/tmp/synapse-sb-live.png`.
+No additional provider smoke run was launched.
+
+### Remaining limitations and next task
+
+S-B's authorized live gate passed. Next milestone is S-C: plan cited synthesis,
+model configuration, token budgets, prompts, testing boundaries, and secure credential
+setup before implementing it. The completed S-B authorization is not permission for
+additional charged searches or model calls. Reopen the saved smoke run instead of
+changing its data directory/idempotency key and spending again.
+
+The live result included older documentation mirrors and retained some navigation
+text in legacy HTML. Sentence-based selection can split abbreviations/code filenames.
+These extraction/ranking limitations are visible; this was a compatibility smoke
+check, not an evaluation of relevance, currency, or research quality.
 
 S-B selects excerpts heuristically; it does not establish semantic support. Publication
 metadata can be unknown or inaccurate. Source independence is URL/hash based, not
@@ -178,5 +193,5 @@ fast fixtures may finish before a person presses Cancel. Local single-user use o
 no automatic resume, concurrent jobs, revisions, or published evaluation metrics.
 The offline socket guard is a tripwire, not a process/network security sandbox.
 
-The S-A checkpoint above is historical. S-B implementation and its pending live
-acceptance gate are recorded at the top of this file. S-C remains unstarted.
+The S-A checkpoint above is historical. Completed S-B verification is recorded at
+the top of this file. S-C remains unstarted.

@@ -4,7 +4,7 @@ An inspectable research pipeline: **discovery → analysis → synthesis → cri
 Offline demonstrations run entirely on authored synthetic fixtures and need no credentials.
 S-B adds opt-in Tavily discovery and public HTML evidence extraction for user questions.
 Live runs stop at **sources ready**: report generation and critique remain pending S-C/S-D.
-Live provider compatibility is not verified until the authorized smoke gate passes.
+The bounded Tavily smoke gate passed; see STATUS for the exact result and limitations.
 
 Choose the AST-versus-embedding comparison or the sparse-evidence scenario, inspect
 saved source snapshots and exact evidence excerpts, reopen runs, and download
@@ -139,7 +139,7 @@ distinct normalized URLs and text hashes, not actual independent authorship. Mat
 citations/quotes establishes integrity, not semantic support. Fixture runs can finish
 before a user can press Cancel; deterministic service tests exercise cancellation.
 
-S-B implementation is available with its live acceptance gate tracked in STATUS.
+S-B's authorized live acceptance gate passed; evidence is tracked in STATUS.
 Model synthesis (S-C), model critique (S-D1), revision (S-D2), and measured evaluation
 (S-E) remain unimplemented. Public hosting requires a constrained egress service and
 access review; the local fetch policy is not a deployment sandbox. PDF, compressed
