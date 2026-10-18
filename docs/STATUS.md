@@ -1,78 +1,87 @@
 # Synapse status
 
-Updated: 2026-10-18. Branch: `codex/synapse-foundation`.
+Updated: 2026-10-18. Branch: `codex/synapse-offline-pipeline`.
 
-## Done
+## S-A — implemented; final publication checks in progress
 
-- M0 documentation, installable Python package, locked tooling, and offline CI definition.
-- All 34 supplied skill files/lockfile were preserved byte-for-byte.
-- Foundation committed as `09167c2` and pushed to `origin/codex/synapse-foundation`.
-- Hosted CI passed on both Python 3.12 and 3.13, including frozen setup, lint,
-  formatting, typing, offline tests, distribution builds, and isolated wheel checks.
+The user approved curated demos and all public testing boundaries. Implemented:
 
-## Next
+- Versioned Pydantic run/query/source/evidence/claim/report/critique/event contracts.
+- Two bundled synthetic scenarios, four typed fixture stages, deterministic evidence,
+  citation/quote/ownership validation, source deduplication, and enforced caps.
+- One background worker and process ownership lock; persisted idempotency, busy
+  rejection, cooperative cancellation/deadline, interrupted recovery, safe errors.
+- Real SQLite run/stage/event storage with atomic stage commits; regenerable source,
+  report, and JSON artifacts. Completed and incomplete exports share their saved IDs.
+- Streamlit scenario preview, history/deep links, progress/cancel, report/evidence,
+  sources, critique, details, and actual download controls. Terminal runs stop polling.
+- Updated package help, setup/use docs, and Python 3.12/3.13 CI with a locked-runtime
+  installed-wheel fixture smoke test. Skills remain unchanged.
 
-S-A is in progress; the user approved all seven public test boundaries and curated demos.
-Typed contracts, synthetic fixture adapters, integrity validation, SQLite stage/event
-persistence, the bounded service, and Markdown/JSON export are implemented. Local
-lint and strict typing pass; 15 offline tests pass, including reopen/idempotency and
-the insufficient-evidence path. UI, failure/restart acceptance tests, browser checks,
-distribution verification, and hosted CI remain before S-A is complete.
+## Local verification evidence
 
-## Planned
+Python 3.12.14, uv 0.12.12; runtime lock includes Pydantic 2.14.1,
+Streamlit 1.66.0, and filelock 3.32.7.
 
-S-A offline fixture pipeline is next. S-B discovery, S-C synthesis, S-D1 live critique,
-S-D2 revision, and S-E evaluation have not started. No application UI, research runs,
-SQLite persistence, exports, search, model calls, or measured research results exist.
-
-## Inspection evidence
-
-- Initial checkout had no commits; only installed skills and `skills-lock.json` were present.
-- Origin: `https://github.com/ayatinkering/Synapse.git`.
-- `git ls-remote --symref origin HEAD 'refs/heads/*'` succeeded with no refs: empty remote.
-- Python 3.12.3 and uv 0.12.12 are installed locally.
-- Existing skill file hashes recorded for byte-for-byte preservation verification.
-
-## Verification
-
-Executed on Python 3.12.14 with uv 0.12.12:
-
-| Command/check | Actual result |
+| Command/check | Observed result |
 |---|---|
-| `uv sync --locked` | Success; frozen dependency setup |
-| `uv run --no-sync ruff check .` | All checks passed |
-| `uv run --no-sync ruff format --check .` | 12 Python files already formatted |
-| `uv run --no-sync mypy` | No issues in 6 source/test files |
-| `uv run --no-sync pytest -m 'not live'` | 5 passed |
-| `uv build` | sdist and wheel built successfully |
-| `UV_PROJECT_ENVIRONMENT=/tmp/synapse-foundation-frozen uv sync --locked --offline` followed by the offline test command in that environment | Fresh environment installed from cache; 5 passed |
-| `uv pip install --python /tmp/synapse-foundation-wheel/bin/python dist/synapse_research-0.1.0-py3-none-any.whl` in a separate `uv venv` | Built wheel installed without runtime dependencies |
-| `/tmp/synapse-foundation-wheel/bin/synapse --version` and `python -m synapse --version` from `/tmp` using that environment | Both printed `synapse 0.1.0`; import resolves to its site-packages |
-| Distribution archive inspection | Wheel has 8 package/metadata entries; sdist has 11 entries; no skills, secrets, or caches included |
-| Supplied PRD comparison | Entire Synapse section preserved; other project requirements excluded |
-| SHA-256 preservation comparison | All 34 original skill files/lockfile unchanged |
-| `git check-ignore` with representative local secret/runtime paths | Environment files, Streamlit secrets, databases, runtime directories, caches, and machine settings ignored |
+| `uv sync --locked` | Locked setup succeeded |
+| `uv run --no-sync ruff check .` | Passed |
+| `uv run --no-sync ruff format --check .` | 25 files already formatted |
+| `uv run --no-sync mypy` | No issues in 19 source/test files |
+| `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --no-sync pytest -m 'not live'` | 38 passed |
+| `uv build --offline` | Source distribution and wheel built |
+| Isolated wheel installed in `/tmp/synapse-sa-wheel` and executed from `/tmp` | Bundled catalog loaded and all four fixture stages completed/exported |
+| Archive inspection | Fixtures/UI included; skills, caches, environment, and local data excluded |
+| SHA-256 preservation comparison | All 34 supplied skill files/lockfile unchanged |
 
-The initial sdist included nested skill READMEs because a basename glob matched
-them. Root-anchored include patterns fixed the issue; the rebuilt archive passed
-the same exclusion check. uv warns that the local cache sits inside the source
-directory; explicit archive inspection confirms it is excluded. Cross-filesystem
-wheel installation fell back from hardlinks to copying, without affecting results.
+Tests exercise empty/oversized input, rubric score/total constraints, exact evidence
+and offsets, cross-run/unknown citations, unsupported quotes, normalized URL/content
+duplicates, budgets, success/gap, busy/idempotency conflicts, cancellation/deadlines,
+sanitized adapter errors, malformed report/critique output, artifact and SQLite
+failures, regeneration, second-process refusal, abrupt crash recovery, and a completed
+run reopened/exported in a fresh Python process. Three Streamlit AppTests cover
+submission, rerun, claim inspection, download controls, deep links, gaps, invalid
+links, and reselecting history after another run.
 
-## GitHub evidence
+TDD evidence: contract/service/UI tests were first exercised before their modules
+existed. Later regression checks reproduced URL normalization double counting,
+missing failed-source IDs in Markdown, and stale recent-run selection before fixes.
+The CLI expectation changed deliberately from foundation-only to offline availability.
 
-- Foundation commit: `09167c2f2dbab046336017d2b47ff58a2a2ea2b6`.
-- Verified run: [CI 39118270917](https://github.com/ayatinkering/Synapse/actions/runs/39118270917).
-- Both matrix jobs completed successfully; every install/check/build/wheel step passed.
-- The repository was empty. GitHub automatically selected its first pushed branch,
-  `codex/synapse-foundation`, as the default branch. No `main` branch was created,
-  no merge was performed, and repository settings were not changed.
-- This status update records the verified foundation run; its own commit does not
-  change the package, dependency lock, tests, or CI workflow.
+## Browser acceptance evidence
 
-## Limits
+Local app launched on `http://127.0.0.1:8501`, bound to loopback, without credentials.
+The real browser started the comparison with the keyboard, showed completed stages,
+opened source provenance/truncation, and inspected the five-dimension fixture critique.
+Both download buttons produced files in the user's Downloads directory; the JSON
+run/source/evidence identifiers and exact excerpts matched the Markdown/snapshots.
+The sparse scenario displayed an evidence gap with incomplete exports. Browser refresh
+reopened the same saved run without submitting another. A final server restart and
+saved-run check succeeded without re-executing stages. Final downloads again matched
+all source/evidence IDs, including the failed source.
 
-- M0 verifies development infrastructure only; it does not satisfy product S01-S15.
-- Package checks do not establish research quality or live provider compatibility.
-- No paid calls, credential configuration, deployment, merge, or force push authorized
-  by this increment. Dependency setup downloads are separate from provider use.
+Screenshot: `/tmp/synapse-offline-ui.png` (local, not committed).
+Generated demo runs remain under ignored `data/synapse/`.
+
+## GitHub and remaining publication checks
+
+- Foundation: `09167c2`; recorded verification: `77dbc03`.
+- Offline core: `cdee9d8`, pushed to `codex/synapse-offline-pipeline`.
+- Foundation CI: [39118270917](https://github.com/ayatinkering/Synapse/actions/runs/39118270917).
+- Final UI/acceptance increment and hosted CI verification pending.
+- The empty repository's first pushed branch, `codex/synapse-foundation`, remains
+  its default. No merge, default-branch setting change, deployment, or force push.
+
+## Limits and next milestone
+
+S-A uses synthetic snapshots and predetermined synthesis/critique, not live research.
+Source independence means distinct normalized URLs/text hashes, not independent authors.
+Integrity checks do not establish semantic correctness. Cancellation is cooperative;
+fast fixtures may finish before a person presses Cancel. Local single-user use only;
+no automatic resume, concurrent jobs, revisions, or published evaluation metrics.
+The offline socket guard is a tripwire, not a process/network security sandbox.
+
+S-B (real discovery and safe fetching) is next, but is not started. Live provider
+integration and paid calls require a separately authorized milestone and credential
+configuration. No OpenAI/Tavily calls, provider keys, or research claims were added.

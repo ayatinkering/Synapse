@@ -1,1 +1,1 @@
-"""Synapse research assistant package; research features are not implemented yet."""
+"""Synapse: inspectable offline fixture research; live integrations are deferred."""

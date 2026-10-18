@@ -2,15 +2,25 @@
 
 ## Current implementation
 
-M0 provides a Python 3.12/3.13 package, argparse help/version entry points, locked
-development tools, and offline package/CI checks. There is no research service,
-storage, UI, model SDK, search SDK, or external request code yet.
+S-A implements Pydantic contracts and four typed fixture adapters; deterministic
+integrity validation; a SQLite-backed run service with one background thread; derived
+atomic artifacts and exports; and a native Streamlit UI. No provider SDK, live fetch,
+model generation, revision, or benchmark evaluation is implemented.
+
+The fixture catalog is bundled package data. Stage outputs carry schema version 1.
+SQLite uses runs, stage_outputs, and events tables (database schema version 1).
+Connections are short lived and stage/event/state writes share a transaction.
+A filelock ownership lock excludes a second process. One global cached service
+owns the single worker; UI reruns only read status unless Start is pressed.
+Idempotency keys are persisted and another nonterminal submission is rejected.
+Interrupted work is marked failed on startup, never silently resumed. Data defaults
+to `data/synapse/`; `SYNAPSE_DATA_DIR` selects another local root.
 
 Distribution: `synapse-research`; import/command: `synapse`. `src/` layout prevents
 accidental import from the checkout root from substituting for an installed package.
 The build backend is pinned; `uv.lock` pins the development dependency graph.
 
-## Planned flow and responsibilities
+## Flow and responsibilities
 
 Streamlit UI -> Python run service -> explicit orchestrator -> adapters/tools.
 SQLite stores metadata/events; per-run artifact directories hold snapshots and
@@ -26,7 +36,7 @@ the adapter/agent boundaries when needed; keep orchestration explicit. No second
 workflow framework, REST service, hosted database, or distributed queue is needed
 for the local first release. Add dependencies at the milestone that uses them.
 
-Planned modules: `models`, `orchestrator`, `agents/discovery`, `agents/analysis`,
+Future live-integration modules: `models`, `orchestrator`, `agents/discovery`, `agents/analysis`,
 `chains/synthesis`, `chains/critic`, `tools/search`, `tools/fetch`, `storage`,
 `evaluation`, and `ui`. Create modules as working behavior needs them.
 
@@ -83,3 +93,13 @@ research quality; mocked tests and critic scores cannot establish it.
 CI currently covers package setup, lint/format, strict typing, offline tests, and
 distribution installation. Python socket blocking is a test tripwire, not a security
 sandbox. CI requires no provider secrets and does not publish packages or deploy.
+
+## S-A verification and limits
+
+Contracts, evidence validation, the run service, reopened storage, exports, and UI
+submission/inspection are the approved test boundaries. Default tests cover synthetic
+success/gap, idempotency/busy, cancellation/deadline, adapter and disk errors,
+process ownership, crash recovery, export regeneration, and AppTest interactions.
+UI status polls once per second only while a selected run is active. Terminal views
+have no polling fragment. Both complete and incomplete exports are validated anew.
+No automatic resumption, concurrent research jobs, or live research is supported.

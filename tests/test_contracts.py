@@ -20,3 +20,8 @@ def test_subquestions_are_bounded() -> None:
 def test_rubric_rejects_out_of_range_scores() -> None:
     with pytest.raises(ValidationError):
         Critique(run_id=uuid4(), scores=[2, 2, 2, 2, 3], findings=[], total=11)
+
+
+def test_rubric_total_must_match_dimensions() -> None:
+    with pytest.raises(ValidationError, match="total must equal"):
+        Critique(run_id=uuid4(), scores=[2, 1, 0, 2, 1], total=10, findings=[])

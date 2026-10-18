@@ -2,6 +2,7 @@
 
 from collections import Counter
 from collections.abc import Sequence
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
 from synapse.models import Analysis, Critique, Discovery, Report, Run
@@ -74,7 +75,14 @@ def independent_sources(result: Analysis) -> int:
     for source in result.sources:
         if source.status != "fetched" or not source.extracted_text.strip():
             continue
-        keys = {f"url:{source.final_url.rstrip('/').split('#')[0]}", f"hash:{source.content_hash}"}
+        url = urlsplit(source.final_url)
+        host = (url.hostname or "").lower()
+        if url.port and (url.scheme.lower(), url.port) not in {("https", 443), ("http", 80)}:
+            host += f":{url.port}"
+        normalized = urlunsplit(
+            (url.scheme.lower(), host, url.path.rstrip("/") or "/", url.query, "")
+        )
+        keys = {f"url:{normalized}", f"hash:{source.content_hash}"}
         overlapping = [g for g in groups if g & keys]
         for group in overlapping:
             keys |= group

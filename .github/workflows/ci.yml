@@ -48,7 +48,18 @@ jobs:
       - name: Verify wheel outside checkout
         run: |
           uv venv /tmp/synapse-wheel --python '${{ matrix.python-version }}'
-          uv pip install --python /tmp/synapse-wheel/bin/python dist/*.whl
+          uv export --locked --no-dev --no-emit-project --no-hashes --output-file /tmp/synapse-runtime.txt
+          uv pip install --python /tmp/synapse-wheel/bin/python -r /tmp/synapse-runtime.txt dist/*.whl
           cd /tmp
           /tmp/synapse-wheel/bin/synapse --version
           /tmp/synapse-wheel/bin/python -m synapse --version
+          /tmp/synapse-wheel/bin/python - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from synapse.service import ResearchService
+          with TemporaryDirectory() as directory:
+              with ResearchService(Path(directory)) as service:
+                  run_id = service.submit('comparison', 'wheel-smoke')
+                  assert service.wait(run_id).run.state == 'completed'
+                  assert 'Offline fixture demonstration' in service.export_run(run_id)[0]
+          PY

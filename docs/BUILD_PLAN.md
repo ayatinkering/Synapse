@@ -4,7 +4,7 @@ Only one milestone is active at a time. A checkpoint is complete only when its
 observable acceptance checks have run and STATUS records the evidence. This plan
 implements PRD S01-S15; P1/P2 work must not silently become a P0 release claim.
 
-## M0 — engineering foundation (current increment)
+## M0 — engineering foundation (complete)
 
 - Create Synapse-only requirements, architecture, progress, and development agreement.
 - Bootstrap an installable Python package without runtime/provider dependencies.
@@ -15,7 +15,7 @@ implements PRD S01-S15; P1/P2 work must not silently become a P0 release claim.
   and ignore rules; commit/push to a `codex/` branch. Report hosted CI separately.
 - Boundary: package health checks are not an implementation of S-A or a live research run.
 
-## S-A — deterministic fixture pipeline (P0 foundation)
+## S-A — deterministic fixture pipeline (current milestone)
 
 Requirements: S01-S02, fixture implementations of S03-S08, S09-S11.
 
@@ -32,9 +32,9 @@ Requirements: S01-S02, fixture implementations of S03-S08, S09-S11.
   cancellation, interrupted work, and stage failure retain inspectable artifacts;
   a UI rerun cannot create duplicate jobs. Verify UI labels and keyboard-accessible
   controls manually or in a browser, alongside service tests.
-- Suggested test boundaries: public input validation, run service, storage reopen,
-  evidence/citation validator, exporter, and UI submission. Confirm these in the
-  S-A plan if using the installed TDD workflow. They are proposals, not recorded approval.
+- Approved test boundaries (2026-10-18): public input validation, run service, storage reopen,
+  evidence/citation validator, exporter, and UI submission. These are recorded in the
+  accepted S-A plan. The user approved all these boundaries.
 - No paid calls or live providers. A fixture rubric is not a measured model critique.
 
 ## S-B — real discovery and analysis (P0)

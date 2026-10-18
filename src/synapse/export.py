@@ -66,6 +66,12 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
             lines += [f"- **{claim.display_id}** {plain(claim.text)} {citations}"]
     if snapshot.analysis:
         lines += ["", "## References and evidence", ""]
+        for source in snapshot.analysis.sources:
+            lines += [
+                f"- {source.display_id} · {source.id} · {plain(source.title)} · {source.status}",
+                f"  Truncated: {source.truncated}. {plain(source.error or '')}",
+            ]
+        lines += [""]
         sources = {s.id: s for s in snapshot.analysis.sources}
         for evidence in snapshot.analysis.evidence:
             source = sources[evidence.source_id]

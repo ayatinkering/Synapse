@@ -17,10 +17,10 @@ def test_installed_entrypoints_report_distribution_version(entrypoint: list[str]
     assert result.stderr == ""
 
 
-def test_help_discloses_foundation_status() -> None:
+def test_help_discloses_offline_fixture_status() -> None:
     result = subprocess.run(["synapse"], capture_output=True, text=True, timeout=10, check=False)
     assert result.returncode == 0
-    assert "Research runs are not implemented yet." in result.stdout
+    assert "Offline fixture research pipeline." in result.stdout
 
 
 def test_unknown_command_fails_clearly() -> None:

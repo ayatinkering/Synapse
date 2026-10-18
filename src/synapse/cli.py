@@ -8,7 +8,7 @@ def main() -> None:
     """Show package help or the installed distribution version."""
     parser = argparse.ArgumentParser(
         prog="synapse",
-        description="Synapse foundation. Research runs are not implemented yet.",
+        description="Offline fixture research pipeline. Start Streamlit for curated demos.",
     )
     parser.add_argument(
         "--version",

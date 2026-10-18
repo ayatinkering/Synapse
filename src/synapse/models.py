@@ -18,6 +18,7 @@ def now() -> datetime:
 
 class Model(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal[1] = 1
 
 
 class State(StrEnum):
@@ -102,7 +103,7 @@ class Source(Model):
     id: UUID
     run_id: UUID
     query_ids: list[UUID]
-    display_id: str
+    display_id: str = Field(pattern=r"^S[0-9]{2,}$")
     original_url: str
     final_url: str
     title: str
@@ -126,7 +127,7 @@ class Evidence(Model):
     id: UUID = Field(default_factory=uuid4)
     run_id: UUID
     source_id: UUID
-    display_id: str
+    display_id: str = Field(pattern=r"^E[0-9]{2,}$")
     excerpt: str = Field(min_length=1)
     excerpt_start: int = Field(ge=0)
     excerpt_end: int = Field(gt=0)
@@ -143,7 +144,7 @@ class Analysis(Model):
 class Claim(Model):
     id: UUID = Field(default_factory=uuid4)
     run_id: UUID
-    display_id: str
+    display_id: str = Field(pattern=r"^C[0-9]{2,}$")
     text: str
     evidence_ids: list[UUID]
     requires_evidence: bool = True

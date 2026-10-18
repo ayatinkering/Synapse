@@ -1,30 +1,73 @@
 # Synapse
 
-An evidence-grounded research assistant being built around discovery, analysis,
-cited synthesis, and critique. The intended product preserves the source snapshots
-behind each cited excerpt so a user can inspect the evidence.
+An inspectable research pipeline: **discovery → analysis → synthesis → critique**.
+S-A runs entirely on authored synthetic fixtures. It makes no search/model calls,
+needs no credentials, and does **not** answer arbitrary research questions.
 
-**Current state: engineering foundation only.** The package exposes help and version
-commands. Research runs, Streamlit UI, persistence, exports, and provider integrations
-are planned; none are implemented yet. See [status](docs/STATUS.md).
+Choose the AST-versus-embedding comparison or the sparse-evidence scenario, inspect
+saved source snapshots and exact evidence excerpts, reopen runs, and download
+Markdown/JSON bundles. Critique scores and findings are predetermined demonstrations,
+not model evaluations or evidence of research quality.
 
-## Setup
+## Setup and launch
 
 Install Python 3.12 and [uv](https://docs.astral.sh/uv/getting-started/installation/),
 then run from the repository root:
 
 ```bash
 uv sync --locked
-uv run --no-sync synapse --version
-uv run --no-sync python -m synapse --help
+uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
 ```
 
-The first setup downloads development/build dependencies. Running the foundation
-requires no API keys, external services, or paid calls. `uv.lock` freezes the development
-dependencies; `uv.toml` keeps the cache inside the ignored `.uv-cache` directory.
-The source package is `synapse`; the distribution is `synapse-research`.
+Open the local address printed by Streamlit (normally `http://127.0.0.1:8501`).
+Setup downloads locked dependencies; the fixture workflow itself needs no external
+services. Usage telemetry is disabled in the project Streamlit configuration.
 
-## Checks
+Default data lives under ignored `data/synapse/`. To use a separate local directory:
+
+```bash
+SYNAPSE_DATA_DIR=/tmp/synapse-demo uv run --no-sync streamlit run src/synapse/ui/app.py --server.address 127.0.0.1
+```
+
+Only one application process may own a data directory, and only one run may be
+queued/running at once. Reruns do not resubmit jobs. On process restart, unfinished
+runs are marked interrupted; their completed stage outputs remain inspectable.
+Cancellation takes effect at stage boundaries. There is no automatic resume.
+
+## Inspect and export
+
+- Preview the fixed question, queries, and limits, then press **Start offline run**.
+- Report: inspect the report and select a claim to see its exact evidence.
+- Sources & Evidence: open snapshots, source failures, hashes, and truncation/date labels.
+- Critique: inspect all five rubric scores and claim-linked predetermined findings.
+- Run Details: inspect configuration, typed discovery output, and ordered events.
+- Download Markdown or JSON after completion, cancellation, failure, or an evidence gap.
+  Incomplete exports are labeled and do not invent missing stages.
+
+The run ID in the page URL reopens the saved run after browser refresh. The sidebar
+also lists saved runs. SQLite is authoritative; missing derived source/report files
+are regenerated on export. A different preview scenario does not change the saved
+run currently being inspected.
+
+## Python service
+
+```python
+from pathlib import Path
+from synapse.service import ResearchService
+
+with ResearchService(Path("/tmp/synapse-python-demo")) as service:
+    run_id = service.submit("comparison", idempotency_key="example-1")
+    snapshot = service.wait(run_id)
+    markdown, json_bundle = service.export_run(run_id)
+    print(snapshot.run.state)
+```
+
+Reuse a submission key to retrieve the same run. Reusing it for another scenario
+is an error. `list_fixtures`, `list_runs`, `get_run`, and `cancel` provide inspection
+and cancellation. Do not create a second service for data owned by a running UI.
+Public service errors carry safe codes; arbitrary adapter exceptions are not exported.
+
+## Verification
 
 ```bash
 uv run --no-sync ruff check .
@@ -34,31 +77,27 @@ uv run --no-sync pytest -m 'not live'
 uv build
 ```
 
-CI runs these checks on Python 3.12 and 3.13 and installs the resulting wheel in
-a separate environment outside the checkout. Jobs have read-only repository permissions,
-no provider secrets, and pinned action commits. A socket guard rejects accidental
-in-process network connections in default tests; it is not an OS-level sandbox and
-does not prevent child processes from accessing the network. No application code
-currently makes network calls. Live tests will require explicit selection and
-authorization when provider integrations exist.
+CI exercises Python 3.12/3.13, including fixture execution from the built wheel in
+an isolated environment outside the checkout. Tests use temporary real SQLite
+stores, fixture adapters, injected clocks/barriers, subprocess restart checks,
+and Streamlit AppTest. A socket guard catches accidental in-process connections;
+it is not an OS sandbox and does not constrain subprocess networking.
 
-To format owned Python code during development:
+`uv.lock` freezes dependencies; `uv.toml` keeps the cache under ignored `.uv-cache/`.
+Installed skills are preserved, versioned, and excluded from owned-code lint/type
+checks and package distributions. No secrets or generated run data belong in Git.
 
-```bash
-uv run --no-sync ruff format src tests
-```
+## Limits and next steps
 
-## Build roadmap
+This is single-user local software. Synthetic source independence is based only on
+distinct normalized URLs and text hashes, not actual independent authorship. Matching
+citations/quotes establishes integrity, not semantic support. Fixture runs can finish
+before a user can press Cancel; deterministic service tests exercise cancellation.
 
-1. S-A: offline fixture pipeline, persisted runs, minimal UI, and matching exports.
-2. S-B: real search, safe HTML extraction, and provenance.
-3. S-C: model-backed structured synthesis and deterministic citation validation.
-4. S-D: live critique, followed by one optional preserved revision.
-5. S-E: fixed-source baselines, held-out evaluation, failure analysis, and demo.
+Live search/safe fetching (S-B), model synthesis (S-C), model critique (S-D1), one
+revision (S-D2), and measured evaluation (S-E) remain unimplemented. No provider
+credentials, deployment, or paid calls are needed for S-A.
 
-See [the PRD](docs/PRD.md), [build checkpoints](docs/BUILD_PLAN.md),
-[architecture](docs/ARCHITECTURE.md), and [agent working agreement](AGENTS.md).
-
-Installed agent skills and their lockfile are preserved as provided. They guide
-development and are not application runtime dependencies. Ruff and mypy check
-the owned application/test code rather than linting third-party skill resources.
+See [status](docs/STATUS.md), [requirements](docs/PRD.md),
+[build plan](docs/BUILD_PLAN.md), [architecture](docs/ARCHITECTURE.md),
+and [agent instructions](AGENTS.md).
