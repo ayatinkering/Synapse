@@ -1,25 +1,47 @@
 # Synapse
 
 [![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Beautiful Soup](https://img.shields.io/badge/Beautiful%20Soup-4-59666C)](https://www.crummy.com/software/BeautifulSoup/)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+
 
 **Turn a research question into a report with sources you can inspect.**
 
-Synapse searches the web, collects relevant passages, and uses Gemini to write a cited
-research report. It then reviews the report for evidence support, coverage, source
-quality, uncertainty, and clarity.
+Synapse is a local research assistant that brings web search, evidence collection,
+report writing, and report review into one Streamlit app. Enter a question, add optional
+subquestions, and search for relevant pages through Tavily. Synapse extracts readable
+text from those pages and saves selected passages as evidence. Gemini then uses that
+saved evidence to write a cited report.
 
-Each report stays connected to its saved sources. You can inspect the original passages,
-revisit previous research, and download your results as Markdown or JSON.
+The report is the starting point for inspection. Each citation connects a claim to a
+saved passage, so you can read the evidence behind an answer without repeating the
+search. A separate review evaluates evidence support, coverage, source quality,
+uncertainty, and clarity, with comments linked to individual claims. These scores are
+model judgments that help you review the report; they do not guarantee that every
+conclusion is correct.
+
+Research stays on your machine in SQLite and local files. You can reopen earlier runs,
+inspect their sources and collection errors, and download results as Markdown or JSON.
+An offline demonstration uses predetermined sample data so you can explore the full
+workflow without API keys. Live research sends search requests to Tavily and selected
+research inputs to Gemini.
 
 ## Features
 
-- **Web research:** search by question, add subquestions, and filter by date.
-- **Traceable answers:** follow a report's citations to the exact saved passages.
-- **Report review:** see a five-part score and comments linked to individual claims.
-- **Research history:** reopen saved runs with their sources, reports, and reviews.
+- **Focused web research:** start with a question, add subquestions, and apply a date
+  filter to guide discovery.
+- **Inspectable evidence:** read the exact saved passages behind report citations,
+  alongside their source links and retrieval details.
+- **Cited report generation:** generate a report from collected evidence, with checks
+  that citation IDs resolve and quotations match their referenced passages.
+- **Claim-level review:** see five review scores and comments linked to the claims
+  they assess, then inspect the supporting evidence yourself.
+- **Persistent research history:** reopen saved runs with their sources, reports,
+  reviews, and recorded progress.
 - **Portable results:** export complete or partial research as Markdown and JSON.
-- **Offline demo:** explore the workflow with sample data and no API keys.
+- **Offline demonstration:** explore sample success and evidence-gap scenarios without
+  external services or credentials.
 
 ## Core Pipeline
 
@@ -32,29 +54,130 @@ flowchart LR
     C --> X[Inspect and export]
 ```
 
-1. **Search:** turn the question and subquestions into search queries and retrieve
-   relevant pages through Tavily.
-2. **Collect evidence:** extract readable text from the pages and save relevant passages
-   alongside source links, dates when available, and retrieval details.
-3. **Write:** ask Gemini to produce a report using the saved evidence. Check that cited
-   passages exist and quoted text matches the source.
-4. **Review:** assess the report across five criteria, each scored from 0 to 2. Display
-   the total out of 10 with comments linked to the report's claims.
+1. **Search:** turn the question and subquestions into a bounded set of search queries.
+   Retrieve relevant page links through Tavily and retain their search context.
+2. **Collect evidence:** fetch supported HTML pages, remove navigation and other
+   distracting content, and select relevant passages. Save those passages with source
+   links, publication dates when available, and retrieval details.
+3. **Write:** explicitly request a Gemini report using the saved evidence. Validate
+   that citations refer to evidence from the same run and quoted text matches the
+   referenced passage before presenting the report.
+4. **Review:** explicitly request a separate assessment across five criteria, each
+   scored from 0 to 2. Show the total out of 10 and comments linked to report claims.
+
+Live discovery pauses once sources are ready. You choose when to generate the report
+and when to evaluate it, giving you an opportunity to inspect the evidence between
+stages. If a later stage fails, earlier saved results remain available.
 
 ## Tech Stack
 
-| **Layer** | **Tools** |
-| --------- | --------- |
-| Language | Python 3.12 / 3.13 |
-| Interface | Streamlit |
-| Search | Tavily API |
-| Report generation and review | Gemini API |
-| Content extraction | BeautifulSoup |
-| Networking | urllib3, dnspython |
-| Data validation | Pydantic |
-| Storage | SQLite, local files, filelock |
-| Pipeline execution | Python service with a background worker |
-| Development and testing | uv, Pytest, Streamlit AppTest, Ruff, mypy |
+| **Layer** | **Tools** | **Purpose** |
+| --------- | --------- | ----------- |
+| Language | Python 3.12 / 3.13 | Application logic and pipeline execution |
+| Interface | Streamlit | Research controls, progress, evidence inspection, and downloads |
+| Search | Tavily API | Discover relevant web pages |
+| Report generation and review | Gemini API | Write cited reports and assess them against a rubric |
+| Content extraction | Beautiful Soup 4 | Parse HTML and extract readable page text |
+| Networking | urllib3, dnspython | Fetch pages with bounded requests and destination checks |
+| Data validation | Pydantic | Define and validate structured research data |
+| Storage | SQLite, local files, filelock | Persist runs, produce artifacts, and coordinate store ownership |
+| Pipeline execution | Python service with one background worker | Run stages while the interface displays progress |
+| Development and testing | uv, pytest, Streamlit AppTest, Ruff, mypy | Manage dependencies and verify behavior, style, and types |
+
+## Repository Structure
+
+```text
+Synapse/
+  src/synapse/
+    ui/
+      app.py           Streamlit interface and research controls
+      resources.py     Shared service setup for the interface
+    discovery.py       Query planning and search coordination
+    search.py          Tavily search integration
+    fetch.py           HTML extraction and evidence selection
+    network.py         Bounded HTTP connections and URL checks
+    synthesis.py       Gemini report generation from saved evidence
+    critic.py          Gemini report review and scoring
+    models.py          Typed contracts for research inputs and outputs
+    validation.py      Evidence, citation, and report integrity checks
+    service.py         Stage coordination and background processing
+    storage.py         SQLite persistence, artifacts, and recovery
+    export.py          Markdown and JSON export
+    fixtures.py        Offline demonstration adapters
+    fixtures/          Curated sample research data
+    cli.py             Command-line entry point
+  tests/               Automated behavior and failure-path tests
+  docs/                Requirements, architecture, build plan, and status
+  pyproject.toml       Package metadata and development configuration
+  uv.lock              Locked dependency versions
+```
+
+Generated research data is stored separately in `data/synapse/` by default. It is
+runtime output rather than part of the versioned sample fixtures.
+
+## Architecture
+
+Synapse runs as a local, single-user application. The Streamlit interface handles user
+input and presents results. A Python service coordinates the research stages through
+one background worker, while dedicated modules handle search, page extraction,
+generation, and review.
+
+```mermaid
+flowchart TD
+    UI[Streamlit interface] --> Service[Python run service]
+    Service --> Worker[Single background worker]
+    Worker --> Discovery[Discovery and evidence collection]
+    Worker --> Synthesis[Report generation]
+    Worker --> Critic[Report review]
+    Discovery --> Tavily[Tavily search API]
+    Discovery --> Pages[Public HTML pages]
+    Synthesis --> Gemini[Gemini API]
+    Critic --> Gemini
+    Service <--> Store[(SQLite)]
+    Store --> Artifacts[Local artifacts and exports]
+    Store --> UI
+```
+
+### Interface and Execution
+
+The interface submits explicit actions to the run service: start discovery, generate
+a report, or evaluate a report. The worker performs the requested stage, and the
+interface reads saved progress and results. Streamlit reruns do not automatically
+submit new research or repeat provider calls. The local service processes one job at
+a time.
+
+### Evidence and Generation
+
+Discovery finds candidate pages through Tavily. The fetch layer checks destinations,
+limits response sizes and request duration, and uses Beautiful Soup to extract readable
+text from supported HTML. Selected excerpts are saved with stable identifiers and
+source metadata.
+
+Report generation receives the question, source metadata, and saved excerpts. It does
+not browse for additional sources. Application validation checks citation ownership
+and literal quotations before accepting the output. The review stage separately
+assesses the saved report and evidence, returning bounded scores and claim-linked
+comments. Valid citation links establish traceability; readers still need to judge
+whether the passages support the conclusions.
+
+### Storage and Recovery
+
+SQLite is the authoritative store for run state, structured stage outputs, and ordered
+events. Local files hold derived artifacts and exports that can be regenerated from
+saved data. Transactional updates keep progress and stage results consistent, and a
+file lock prevents a second process from taking ownership of the same store.
+
+If the application restarts during a job, that interrupted work is marked as failed
+rather than silently resumed. Previously saved outputs remain inspectable, including
+partial research and a report whose later review failed.
+
+### Offline and Live Modes
+
+The offline demonstration uses deterministic fixture adapters to exercise the workflow
+without network access or API keys. Live mode uses Tavily for discovery and Gemini for
+generation and review, with server-side configuration gates and application-enforced
+request and token budgets. The same interface supports inspecting saved results from
+either mode.
 
 ## Getting Started
 
@@ -117,9 +240,10 @@ launching to use another compatible model.
 1. Choose **Live discovery** and enter a topic and research question.
 2. Add optional subquestions or a date filter, review the queries, and click
    **Start live discovery**.
-3. Once sources are ready, click **Generate cited report**.
+3. Inspect the collected sources and passages, then click **Generate cited report**.
 4. Click **Evaluate report** to see the review and scores.
-5. Inspect the results or download them as Markdown or JSON.
+5. Follow citations, read claim-linked comments, or download the results as Markdown
+   or JSON.
 
 | **Tab** | **What you'll find** |
 | ------- | -------------------- |
@@ -129,27 +253,8 @@ launching to use another compatible model.
 | Run Details | Research settings, usage, and the sequence of completed steps |
 
 Use **Recent runs** to reopen earlier research. Results are stored locally in
-`data/synapse/`; set `SYNAPSE_DATA_DIR` to choose a different directory.
-
-## Project Structure
-
-```text
-src/synapse/
-  ui/                Streamlit interface
-  discovery.py       Query planning and search coordination
-  search.py          Tavily integration
-  fetch.py           Page extraction and evidence selection
-  network.py         Bounded HTTP connections and URL checks
-  synthesis.py       Cited report generation
-  critic.py          Report review and scoring
-  models.py          Typed research data
-  service.py         Background processing
-  storage.py         Saved runs and recovery
-  export.py          Markdown and JSON export
-  fixtures.py        Offline demonstration adapters
-  fixtures/          Sample research data
-tests/               Automated tests
-```
+`data/synapse/`; set `SYNAPSE_DATA_DIR` to choose a different directory. Saved runs
+remain inspectable without provider credentials.
 
 ## Development
 
@@ -161,5 +266,6 @@ uv run --no-sync pytest -m 'not live'
 uv build
 ```
 
-The default tests run without API keys and cover evidence extraction, citation checks,
-report scoring, persistence, exports, and interface behavior.
+The default tests run without API keys or network access. They cover evidence
+extraction, citation checks, report scoring, persistence, exports, interface behavior,
+and important failure paths. Live provider checks are separate, opt-in tests.
