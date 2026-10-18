@@ -27,13 +27,14 @@ class State(StrEnum):
     ANALYZING = "analyzing"
     SYNTHESIZING = "synthesizing"
     CRITIQUING = "critiquing"
+    SOURCES_READY = "sources_ready"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
     INSUFFICIENT = "insufficient_evidence"
 
 
-TERMINAL = {State.COMPLETED, State.FAILED, State.CANCELLED, State.INSUFFICIENT}
+TERMINAL = {State.COMPLETED, State.FAILED, State.CANCELLED, State.INSUFFICIENT, State.SOURCES_READY}
 
 
 class RunInput(Model):
@@ -41,6 +42,13 @@ class RunInput(Model):
     question: Text
     subquestions: list[Text] = Field(default_factory=list, max_length=3)
     date_preference: str | None = None
+
+    @field_validator("subquestions")
+    @classmethod
+    def clean_subquestions(cls, values: list[str]) -> list[str]:
+        if any(not v.strip() for v in values):
+            raise ValueError("Subquestions must contain text")
+        return [v.strip() for v in values]
 
     @field_validator("topic", "question")
     @classmethod
@@ -55,25 +63,42 @@ class Limits(Model):
     results_per_query: int = Field(default=5, ge=1)
     max_sources: int = Field(default=10, ge=1)
     text_characters: int = Field(default=3000, ge=1)
-    deadline_seconds: float = Field(default=600, gt=0)
-    fetch_timeout_seconds: int = 15
-    response_bytes: int = 2_000_000
-    transient_retries: int = 2
+    deadline_seconds: float = Field(default=600, gt=0, allow_inf_nan=False)
+    fetch_timeout_seconds: int = Field(default=15, gt=0)
+    response_bytes: int = Field(default=2_000_000, gt=0)
+    transient_retries: int = Field(default=2, ge=0, le=2)
 
 
 class Run(Model):
     id: UUID = Field(default_factory=uuid4)
-    fixture_id: str
+    fixture_id: str | None = None
+    kind: Literal["fixture", "live"] = "fixture"
     input: RunInput
     state: State = State.QUEUED
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
     limits: Limits = Field(default_factory=Limits)
-    model_id: str = "fixture-v1"
-    prompt_version: str = "fixture-v1"
+    model_id: str | None = "fixture-v1"
+    prompt_version: str | None = "fixture-v1"
     cancel_requested: bool = False
     error: str | None = None
-    label: Literal["Offline fixture demonstration"] = LABEL
+    label: Literal["Offline fixture demonstration", "Live discovery — report pending"] = LABEL
+
+
+class Attempt(Model):
+    number: int = Field(ge=1, le=3)
+    status: Literal["started", "success", "failed"]
+    error: str | None = None
+    status_code: int | None = None
+    request_id: str | None = Field(default=None, max_length=200)
+    credits: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+
+
+class DiscoveryPreview(Model):
+    input: RunInput
+    queries: list[str]
+    date_preference: Literal["day", "week", "month", "year"] | None
+    limits: Limits
 
 
 class Query(Model):
@@ -82,6 +107,16 @@ class Query(Model):
     text: Text
     provider: str = "bundled-fixture"
     requested_date_filter: str | None = None
+    status: Literal["pending", "success", "failed"] = "success"
+    error: str | None = None
+    attempts: list[Attempt] = Field(default_factory=list)
+
+
+class SearchHit(Model):
+    query_id: UUID
+    rank: int = Field(ge=1)
+    score: float | None = Field(default=None, allow_inf_nan=False)
+    snippet: str = Field(default="", max_length=1000)
 
 
 class Candidate(Model):
@@ -91,6 +126,7 @@ class Candidate(Model):
     url: str
     title: str
     relevance: str
+    search_hits: list[SearchHit] = Field(default_factory=list)
 
 
 class Discovery(Model):
@@ -114,7 +150,7 @@ class Source(Model):
     truncated: bool
     status: Literal["fetched", "failed"]
     error: str | None = None
-    label: Literal["Offline fixture demonstration"] = LABEL
+    label: Literal["Offline fixture demonstration", "Live discovery — report pending"] = LABEL
 
     @model_validator(mode="after")
     def hash_matches(self) -> "Source":

@@ -4,11 +4,12 @@
 
 S-A implements Pydantic contracts and four typed fixture adapters; deterministic
 integrity validation; a SQLite-backed run service with one background thread; derived
-atomic artifacts and exports; and a native Streamlit UI. No provider SDK, live fetch,
-model generation, revision, or benchmark evaluation is implemented.
+atomic artifacts and exports; and a native Streamlit UI. S-B adds a direct Tavily adapter, pinned-IP HTTP fetching, bounded DNS resolution,
+BeautifulSoup cleaning, heuristic evidence selection, and per-query/source checkpoints.
+No model generation, revision, or benchmark evaluation is implemented.
 
 The fixture catalog is bundled package data. Stage outputs carry schema version 1.
-SQLite uses runs, stage_outputs, and events tables (database schema version 1).
+SQLite uses runs, stage_outputs, and events tables (database schema version 2; transactional migration from v1).
 Connections are short lived and stage/event/state writes share a transaction.
 A filelock ownership lock excludes a second process. One global cached service
 owns the single worker; UI reruns only read status unless Start is pressed.
@@ -43,7 +44,8 @@ Future live-integration modules: `models`, `orchestrator`, `agents/discovery`, `
 ## State, persistence, and concurrency
 
 `queued -> discovering -> analyzing -> synthesizing -> critiquing -> completed`.
-Terminal alternatives: `failed`, `cancelled`, `insufficient_evidence`.
+Live discovery stops at `sources_ready` after analysis. Other terminal alternatives:
+`failed`, `cancelled`, `insufficient_evidence`.
 
 Assign a persisted run ID before submission. A bounded background worker claims
 the job once; Streamlit reruns read status instead of resubmitting. Persist each
@@ -102,4 +104,41 @@ success/gap, idempotency/busy, cancellation/deadline, adapter and disk errors,
 process ownership, crash recovery, export regeneration, and AppTest interactions.
 UI status polls once per second only while a selected run is active. Terminal views
 have no polling fragment. Both complete and incomplete exports are validated anew.
-No automatic resumption, concurrent research jobs, or live research is supported.
+S-A has no automatic resumption or concurrent research jobs. The S-B boundary below
+adds opt-in live discovery; report generation and critique remain fixture-only.
+
+## S-B live discovery boundary
+
+Fixture runs retain their four-stage behavior and labels. Explicit live runs terminate
+at `sources_ready` after two stages; report/critique fields remain null and exports
+are incomplete research bundles. Mode, complete normalized input, and limits form the
+persisted submission fingerprint. A changed request cannot reuse a key silently.
+
+The deterministic preview uses the question and up to two distinct subquestions.
+Tavily is fixed to its HTTPS search endpoint, basic depth, no auto parameters, answers,
+or raw content. Search results preserve bounded snippets, ranks/scores and query
+associations separately from fetched evidence. Each dispatched attempt is checkpointed;
+started attempts without a response have unknown usage, including after interruption.
+Authentication/quota errors stop discovery; other query failures retain prior results.
+
+Fetch tools normalize public HTTP(S) URLs and reject credentials, nonstandard ports,
+nonpublic/mixed DNS answers, invalid TLS, downgrade redirects, unsupported MIME/encoding,
+oversized responses, and access errors. DNS has a bounded lifetime. Each retry/redirect
+resolves again and connections pin an approved IP while retaining original Host/SNI and
+certificate matching. HTTP transport uses no ambient proxies/cookies, automatic
+redirects/retries, or decompression. A watchdog and streamed-read budget bound attempts.
+One initial fetch plus two transient retries and up to three redirects per attempt are
+allowed. Cancellation is cooperative; calls check the remaining run deadline.
+
+Analysis strips script/navigation/form content, prefers article/main text, normalizes
+whitespace, then caps the snapshot. Up to three exact nonoverlapping excerpts are
+ranked by question-term overlap with document-order ties. This is provenance, not
+semantic claim support. Date metadata is parsed only from explicit supported page
+publication tags; unknown dates stay null. Every finished source/evidence checkpoint
+atomically replaces the growing analysis output and appends an event. SQLite remains
+authoritative, including on cancellation/restart and derived artifact failure.
+
+Server-side live enablement and a Tavily key are required for new live submissions.
+Fixtures and saved live runs remain inspectable without credentials. No provider
+secret or raw provider exception body belongs in stored output. Public deployment,
+model orchestration, full-text/PDF ingestion, and evaluation remain later work.

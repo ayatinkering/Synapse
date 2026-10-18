@@ -5,8 +5,8 @@ from uuid import UUID, uuid4
 
 import streamlit as st
 
-from synapse.export import render
-from synapse.models import LABEL, TERMINAL, Snapshot, State
+from synapse.export import plain, render
+from synapse.models import LABEL, TERMINAL, RunInput, Snapshot, State
 from synapse.service import ResearchService
 from synapse.storage import ServiceError
 from synapse.ui.resources import get_service
@@ -15,18 +15,25 @@ from synapse.ui.resources import get_service
 def select_saved_run() -> None:
     selected = st.session_state["history"]
     if selected != "Choose a saved run":
-        st.query_params["run"] = selected
+        try:
+            st.query_params["run"] = str(UUID(selected))
+        except ValueError:
+            # A stale browser option must not overwrite a valid saved-run link.
+            return
 
 
 def render_run(service: ResearchService, snapshot: Snapshot) -> None:
     run = snapshot.run
-    st.subheader(f"Saved run: {run.input.topic}")
+    st.subheader(f"Saved run: {plain(run.input.topic)}")
     completed = sum(
         output is not None
         for output in (snapshot.discovery, snapshot.analysis, snapshot.report, snapshot.critique)
     )
     st.progress(completed / 4, text=f"{completed}/4 stage outputs saved · {run.state.value}")
-    if run.state == State.COMPLETED:
+    st.caption(run.label)
+    if run.state == State.SOURCES_READY:
+        st.success("Sources ready — report and critique not implemented yet")
+    elif run.state == State.COMPLETED:
         st.success("Run completed · all four fixture stages saved")
     elif run.error:
         st.error(run.error)
@@ -56,10 +63,17 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
         else:
             st.info("No report is available. Missing stages are not inferred.")
     with sources_tab:
+        if snapshot.discovery:
+            for query in snapshot.discovery.queries:
+                if query.error:
+                    st.text(f"Search query: {query.text}")
+                    st.warning(query.error)
         if snapshot.analysis:
             for source in snapshot.analysis.sources:
-                with st.expander(f"{source.display_id} · {source.title} · {source.status}"):
-                    st.caption(LABEL)
+                with st.expander(f"{source.display_id} · {plain(source.title)} · {source.status}"):
+                    st.caption(source.label)
+                    st.text(f"Original URL: {source.original_url}")
+                    st.caption(f"Retrieved: {source.retrieved_at.isoformat()}")
                     st.text(source.final_url)
                     st.caption(
                         f"Truncated: {source.truncated} · Publication date: "
@@ -105,6 +119,10 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
         st.caption("Persisted actions and statuses; no private model reasoning.")
         st.json([event.model_dump(mode="json") for event in snapshot.events])
         if snapshot.discovery:
+            for query in snapshot.discovery.queries:
+                st.text(f"Query: {query.text} · {query.status}")
+                if query.error:
+                    st.warning(query.error)
             st.json(snapshot.discovery.model_dump(mode="json"))
     if run.state in TERMINAL:
         markdown, bundle = service.export_run(run.id)
@@ -135,10 +153,10 @@ def live_run(service: ResearchService, run_id: UUID) -> None:
         st.error("Unable to load this run. Check local storage and restart the application.")
 
 
-st.set_page_config(page_title="Synapse · offline research", layout="wide")
+st.set_page_config(page_title="Synapse · research evidence", layout="wide")
 st.title("Synapse")
 st.caption("Discover → analyze → synthesize → critique · inspect every saved step")
-st.warning(f"{LABEL}. Curated synthetic sources and predetermined outputs; no live research.")
+
 
 try:
     service = get_service(os.environ.get("SYNAPSE_DATA_DIR", "data/synapse"))
@@ -149,34 +167,85 @@ except (ServiceError, OSError, ValueError):
     st.stop()
 
 st.session_state.setdefault("submission_key", str(uuid4()))
-fixtures = {fixture.id: fixture for fixture in service.list_fixtures()}
-fixture_id = st.selectbox(
-    "Scenario", list(fixtures), format_func=lambda value: fixtures[value].name, key="fixture"
-)
-fixture = fixtures[fixture_id]
-st.subheader(fixture.name)
-st.text(fixture.input.question)
-with st.expander("Preview queries and run limits"):
-    for query in fixture.queries:
-        st.text(query)
-    st.json(service.limits.model_dump())
-    st.caption("Model: fixture-v1 · 0 provider calls · no credentials required")
+mode = st.radio("Run mode", ["Offline demonstration", "Live discovery"], key="mode")
+live = mode == "Live discovery"
+input: RunInput | None = None
+fixture_id = "comparison"
+if not live:
+    st.warning(f"{LABEL}. Curated synthetic sources and predetermined outputs; no live research.")
+    fixtures = {fixture.id: fixture for fixture in service.list_fixtures()}
+    fixture_id = st.selectbox(
+        "Scenario", list(fixtures), format_func=lambda value: fixtures[value].name, key="fixture"
+    )
+    fixture = fixtures[fixture_id]
+    st.subheader(fixture.name)
+    st.text(fixture.input.question)
+    with st.expander("Preview queries and run limits"):
+        for query in fixture.queries:
+            st.text(query)
+        st.json(service.limits.model_dump())
+        st.caption("Model: fixture-v1 · 0 provider calls · no credentials required")
+else:
+    st.info("Live discovery fetches public HTML. Report and critique are pending S-C/S-D.")
+    topic = st.text_input("Topic", max_chars=1000, key="topic")
+    question = st.text_area("Research question", max_chars=1000, key="question")
+    subquestions = st.text_area(
+        "Optional subquestions (up to three, one per line)", max_chars=3002, key="subquestions"
+    )
+    date = st.selectbox(
+        "Requested publication window",
+        [None, "day", "week", "month", "year"],
+        format_func=lambda v: "Any time" if v is None else f"Past {v}",
+        key="date",
+    )
+    try:
+        input = RunInput(
+            topic=topic,
+            question=question,
+            subquestions=[s for s in subquestions.splitlines() if s.strip()],
+            date_preference=date,
+        )
+        preview = service.preview_discovery(input)
+        st.caption("Planned queries (question, then up to two distinct subquestions)")
+        for query in preview.queries:
+            st.text(query)
+    except (ValueError, ServiceError):
+        input = None
+        st.info("Enter a topic and question; use at most three nonempty subquestions.")
+    with st.expander("Run limits and provider calls"):
+        st.json(service.limits.model_dump())
+        st.text(
+            "Tavily basic search: up to three queries, three attempts per query. "
+            "Retries may incur charges. Provider-reported usage is saved; cost unavailable."
+        )
+        st.caption("No language model calls. Date filtering does not verify publication dates.")
+    if not service.live_enabled:
+        st.warning(
+            "Live submission disabled. Configure SYNAPSE_ENABLE_LIVE=1 and "
+            "TAVILY_API_KEY server-side, then restart. Never enter keys in a research field."
+        )
 
 try:
     runs = service.list_runs()
     active = any(run.state not in TERMINAL for run in runs)
-    if st.button("Start offline run", type="primary", key="start", disabled=active):
-        selected_id = service.submit(fixture_id, st.session_state["submission_key"])
+    disabled = active or (live and (input is None or not service.live_enabled))
+    if st.button(
+        "Start live discovery" if live else "Start offline run",
+        type="primary",
+        key="start",
+        disabled=disabled,
+    ):
+        if live and input is not None:
+            selected_id = service.submit_discovery(input, st.session_state["submission_key"])
+        else:
+            selected_id = service.submit(fixture_id, st.session_state["submission_key"])
         st.session_state["selected_run"] = str(selected_id)
         st.session_state["history"] = str(selected_id)
         st.session_state["submission_key"] = str(uuid4())
         st.query_params["run"] = str(selected_id)
         st.rerun()
     if runs:
-        names = {
-            str(run.id): f"{run.input.topic} · {run.state.value} · {str(run.id)[:8]}"
-            for run in runs
-        }
+        names = {str(run.id): f"{run.input.topic} · {str(run.id)[:8]}" for run in runs}
         options = ["Choose a saved run", *names]
         st.sidebar.selectbox(
             "Recent runs",

@@ -1,8 +1,10 @@
 """SQLite is authoritative; files are rebuildable renderings of saved outputs."""
 
+import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from hashlib import sha256
 from pathlib import Path
 from uuid import UUID
 
@@ -25,10 +27,23 @@ class ServiceError(Exception):
     """A safe, user-facing error code, never an arbitrary adapter traceback."""
 
 
+def fingerprint(run: Run) -> str:
+    request = {
+        "kind": run.kind,
+        "fixture_id": run.fixture_id,
+        "input": run.input.model_dump(mode="json"),
+        "limits": run.limits.model_dump(mode="json"),
+    }
+    return sha256(json.dumps(request, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
 class Store:
     def __init__(self, directory: Path) -> None:
         self.path = directory / "synapse.sqlite3"
         with self.connection() as db:
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            if version > 2:
+                raise ServiceError("SCHEMA_UNSUPPORTED: Database requires a newer application.")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS runs (
                     id TEXT PRIMARY KEY, request_key TEXT UNIQUE NOT NULL,
@@ -39,8 +54,17 @@ class Store:
                 CREATE TABLE IF NOT EXISTS events (
                     run_id TEXT NOT NULL REFERENCES runs(id), sequence INTEGER NOT NULL,
                     payload TEXT NOT NULL, PRIMARY KEY(run_id, sequence));
-                PRAGMA user_version = 1;
+
             """)
+            if version < 2:
+                db.execute("BEGIN IMMEDIATE")
+                db.execute("ALTER TABLE runs RENAME COLUMN fixture_id TO request_fingerprint")
+                for run_id, payload in db.execute("SELECT id, payload FROM runs").fetchall():
+                    db.execute(
+                        "UPDATE runs SET request_fingerprint=? WHERE id=?",
+                        (fingerprint(Run.model_validate_json(payload)), run_id),
+                    )
+                db.execute("PRAGMA user_version = 2")
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -62,12 +86,12 @@ class Store:
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute(
-                "SELECT id, fixture_id FROM runs WHERE request_key=?", (key,)
+                "SELECT id, request_fingerprint FROM runs WHERE request_key=?", (key,)
             ).fetchone()
             if previous:
-                if previous[1] != run.fixture_id:
+                if previous[1] != fingerprint(run):
                     raise ServiceError(
-                        "IDEMPOTENCY_CONFLICT: This submission key belongs to another scenario."
+                        "IDEMPOTENCY_CONFLICT: Submission key belongs to different input or limits."
                     )
                 return UUID(previous[0]), False
             for (payload,) in db.execute("SELECT payload FROM runs"):
@@ -77,9 +101,9 @@ class Store:
                     )
             db.execute(
                 "INSERT INTO runs VALUES (?, ?, ?, ?)",
-                (str(run.id), key, run.fixture_id, run.model_dump_json()),
+                (str(run.id), key, fingerprint(run), run.model_dump_json()),
             )
-            self.event(db, run, "submitted", "Offline run queued.")
+            self.event(db, run, "submitted", "Research run queued.")
             return run.id, True
 
     def event(
@@ -122,6 +146,7 @@ class Store:
         error: str | None = None,
         cancel: bool = False,
         duration: float = 0,
+        checkpoint: bool = False,
     ) -> None:
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -139,14 +164,19 @@ class Store:
             )
             if stage is not None and output is not None:
                 db.execute(
-                    "INSERT INTO stage_outputs VALUES (?, ?, ?)",
+                    "INSERT INTO stage_outputs VALUES (?, ?, ?) "
+                    "ON CONFLICT(run_id, stage) DO UPDATE SET payload=excluded.payload",
                     (str(run_id), stage, output.model_dump_json()),
                 )
             db.execute("UPDATE runs SET payload=? WHERE id=?", (run.model_dump_json(), str(run_id)))
             self.event(
                 db,
                 run,
-                "stage_completed" if output is not None else "status",
+                "stage_checkpoint"
+                if checkpoint
+                else "stage_completed"
+                if output is not None
+                else "status",
                 f"{stage} output saved."
                 if stage
                 else error or ("Cancellation requested." if cancel else run.state.value),

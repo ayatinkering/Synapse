@@ -2,7 +2,7 @@
 
 import re
 
-from synapse.models import LABEL, Snapshot, State
+from synapse.models import Snapshot, State
 from synapse.validation import (
     validate_analysis,
     validate_critique,
@@ -37,12 +37,12 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
     ):
         raise ValueError("Completed run has missing stage outputs")
     lines = [
-        "# Synapse report",
+        "# Synapse report" if run.kind == "fixture" else "# Synapse evidence bundle",
         "",
-        f"**{LABEL}**",
+        f"**{plain(run.label)}**",
         "",
         f"Run: {run.id}",
-        f"Fixture: {plain(run.fixture_id)}",
+        f"Fixture: {plain(run.fixture_id)}" if run.fixture_id else "Mode: live discovery",
         f"Status: {run.state.value}",
         "",
     ]
@@ -50,9 +50,45 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
         lines += [
             "**INCOMPLETE — missing stages are not inferred.**",
             "",
-            plain(run.error or "Run not finished."),
+            plain(
+                run.error
+                or (
+                    "Discovery and analysis finished; report and critique pending."
+                    if run.state == State.SOURCES_READY
+                    else "Run not finished."
+                )
+            ),
             "",
         ]
+    if run.kind == "live":
+        lines += [
+            "## Request and limits",
+            "",
+            plain(run.input.question),
+            "",
+            f"Requested date filter: {plain(run.input.date_preference or 'any time')}",
+            "",
+        ]
+        lines += [
+            f"- {key}: {value}"
+            for key, value in run.limits.model_dump().items()
+            if key != "schema_version"
+        ]
+        lines += ["", "## Search outcomes (snippets are not evidence)", ""]
+        if snapshot.discovery:
+            for query in snapshot.discovery.queries:
+                lines += [
+                    f"- {query.id} · {plain(query.text)} · {query.status}",
+                    plain(query.error or ""),
+                ]
+                for attempt in query.attempts:
+                    lines += [
+                        f"  Attempt {attempt.number}: {attempt.status}; "
+                        f"HTTP {attempt.status_code}; {plain(attempt.error or '')}; "
+                        f"request {plain(attempt.request_id or 'unknown')}; "
+                        f"credits: {attempt.credits if attempt.credits is not None else 'unknown'}"
+                    ]
+        lines += [""]
     if snapshot.report:
         lines += [f"Report version: {snapshot.report.version}", ""]
         for section in snapshot.report.sections:
@@ -70,6 +106,12 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
             lines += [
                 f"- {source.display_id} · {source.id} · {plain(source.title)} · {source.status}",
                 f"  Truncated: {source.truncated}. {plain(source.error or '')}",
+                f"  Original URL: {plain(source.original_url)}",
+                f"  Final URL: {plain(source.final_url)}",
+                f"  Retrieved: {source.retrieved_at.isoformat()}",
+                "  Publication date: "
+                + (source.published_at.isoformat() if source.published_at else "unknown"),
+                f"  SHA-256: {source.content_hash}",
             ]
         lines += [""]
         sources = {s.id: s for s in snapshot.analysis.sources}
@@ -100,7 +142,9 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
         "",
         "## Limitations",
         "",
-        "Synthetic evidence and predetermined outputs do not establish research quality.",
+        "Synthetic evidence and predetermined outputs do not establish research quality."
+        if run.kind == "fixture"
+        else "Report and critique pending. Heuristic excerpts do not establish semantic support.",
         "",
     ]
     return "\n".join(lines), snapshot.model_dump_json(indent=2)

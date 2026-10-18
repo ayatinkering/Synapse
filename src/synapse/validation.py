@@ -69,19 +69,23 @@ def validate_analysis(run: Run, discovery: Discovery, result: Analysis) -> None:
             raise ValueError("Stored excerpt does not match source")
 
 
+def normalize_url(value: str) -> str:
+    url = urlsplit(value)
+    host = (url.hostname or "").lower()
+    if ":" in host:
+        host = f"[{host}]"
+    if url.port and (url.scheme.lower(), url.port) not in {("https", 443), ("http", 80)}:
+        host += f":{url.port}"
+    return urlunsplit((url.scheme.lower(), host, url.path.rstrip("/") or "/", url.query, ""))
+
+
 def independent_sources(result: Analysis) -> int:
     # Connected duplicate groups: shared URL OR hash cannot corroborate each other.
     groups: list[set[str]] = []
     for source in result.sources:
         if source.status != "fetched" or not source.extracted_text.strip():
             continue
-        url = urlsplit(source.final_url)
-        host = (url.hostname or "").lower()
-        if url.port and (url.scheme.lower(), url.port) not in {("https", 443), ("http", 80)}:
-            host += f":{url.port}"
-        normalized = urlunsplit(
-            (url.scheme.lower(), host, url.path.rstrip("/") or "/", url.query, "")
-        )
+        normalized = normalize_url(source.final_url)
         keys = {f"url:{normalized}", f"hash:{source.content_hash}"}
         overlapping = [g for g in groups if g & keys]
         for group in overlapping:

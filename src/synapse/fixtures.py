@@ -45,6 +45,8 @@ class Stages(Protocol):
 
 class FixtureAdapter:
     def discover(self, run: Run) -> Discovery:
+        if run.fixture_id is None or run.kind != "fixture":
+            raise ValueError("Fixture adapter requires a fixture run")
         info = get_fixture(run.fixture_id)
         queries = [Query(run_id=run.id, text=text) for text in info.queries]
         candidates = [
