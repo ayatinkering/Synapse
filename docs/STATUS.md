@@ -2,7 +2,7 @@
 
 Updated: 2026-10-18. Branch: `codex/synapse-offline-pipeline`.
 
-## S-A — implemented; final publication checks in progress
+## S-A — complete (offline fixture milestone)
 
 The user approved curated demos and all public testing boundaries. Implemented:
 
@@ -69,7 +69,11 @@ Generated demo runs remain under ignored `data/synapse/`.
 - Foundation: `09167c2`; recorded verification: `77dbc03`.
 - Offline core: `cdee9d8`, pushed to `codex/synapse-offline-pipeline`.
 - Foundation CI: [39118270917](https://github.com/ayatinkering/Synapse/actions/runs/39118270917).
-- Final UI/acceptance increment and hosted CI verification pending.
+- UI/acceptance increment: `faee139`, pushed to the same branch.
+- Final implementation CI: [39120120243](https://github.com/ayatinkering/Synapse/actions/runs/39120120243), success.
+  Both Python 3.12 and 3.13 jobs passed frozen setup, lint/format, strict typing,
+  all 38 offline tests, builds, and the installed-wheel fixture smoke check.
+- This final status-only commit records implementation evidence; it changes no code or tests.
 - The empty repository's first pushed branch, `codex/synapse-foundation`, remains
   its default. No merge, default-branch setting change, deployment, or force push.
 

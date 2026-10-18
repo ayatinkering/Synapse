@@ -15,7 +15,7 @@ implements PRD S01-S15; P1/P2 work must not silently become a P0 release claim.
   and ignore rules; commit/push to a `codex/` branch. Report hosted CI separately.
 - Boundary: package health checks are not an implementation of S-A or a live research run.
 
-## S-A — deterministic fixture pipeline (current milestone)
+## S-A — deterministic fixture pipeline (complete offline milestone)
 
 Requirements: S01-S02, fixture implementations of S03-S08, S09-S11.
 
