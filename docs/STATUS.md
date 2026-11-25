@@ -1,6 +1,90 @@
 # Synapse status
 
-Updated: 2026-10-18. Integration branch: `main`.
+Updated: 2026-11-25. Development branch: `codex/langchain-research-agents`.
+Base: merged `main` checkpoint `cf2247f`.
+
+## S-L — LangChain alignment, verified offline
+
+The user authorized aligning the implementation with the intended two-agent/two-chain
+project, retaining Gemini, updating GitHub documentation, and committing/pushing the
+changes. The user explicitly selected **offline-only verification**. No Gemini/Tavily
+credentials were read and no live provider requests were made for this increment.
+No merge or deployment is part of this change.
+
+Implemented actual LangChain `create_agent` loops for discovery and analysis, using
+application-owned `search_web(index)` and `fetch_evidence(index)` tools. Gemini selects
+approved queries/candidates or stops. This is model-directed tool use, not the former
+deterministic loop with a framework label. Queries remain a bounded catalog generated
+from user input; extraction remains deterministic BeautifulSoup/term-overlap selection.
+The two agents execute sequentially under the existing service. Synthesis and critique
+now use LCEL generation/strict-Pydantic-parser chains, preserving their prior validators.
+
+The custom LangChain chat model converts schema-constrained Gemini JSON decisions into
+single tool calls. The existing pinned-IP HTTPS transport remains in use; no Google SDK
+or native Gemini function-calling integration was added. Model middleware plus an
+adapter counter cap calls at catalog size + 1; tools independently reject repeated and
+out-of-range indexes. Default maxima: four discovery and eleven analysis model calls,
+each with count preflight, 8,192 input / 2,048 output tokens, 30-second requests, no
+model retries, and the enclosing 600-second worker deadline. LangSmith tracing is
+disabled around agents and chains, including when the environment enables tracing.
+
+Optional run workflow/configuration and per-agent prompt/usage outputs preserve old
+SQLite stores without migration. Request fingerprints distinguish new agent settings
+without changing historical deterministic fingerprints. Completed analysis sources are
+saved between agent model calls. Earlier discovery/evidence and incomplete usage
+survive failures. JSON/Markdown exports and Run Details include agent usage records.
+The UI factory requires Gemini, Tavily and free-tier confirmation for new live research;
+explicit report/critique controls and offline demonstrations retain their behavior.
+README, PRD, build plan and architecture describe the new implementation and limits.
+
+### Verification performed
+
+| Command/check | Actual result |
+|---|---|
+| `uv add 'langchain>=1,<2' 'langchain-core>=1,<2'`; `uv add 'langsmith>=0.3,<1'` | Locked LangChain 1.5.2, core 1.8.4, LangSmith 0.16.2; LangGraph is the agent factory's transitive runtime |
+| `uv sync --locked` | Passed; 80 resolved, 77 checked |
+| `uv run --no-sync ruff check .` | Passed |
+| `uv run --no-sync ruff format --check .` | 42 files already formatted |
+| `uv run --no-sync mypy` | No issues in 36 source files |
+| `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run --no-sync pytest -m 'not live'` | 143 passed, 3 live deselected in 43.84 seconds |
+| `uv build --offline` | Source distribution and wheel built |
+| `uv run --no-sync synapse --version` | `synapse 0.1.0` |
+| `git diff --check`; README order/fences and distribution inspection | Passed; agents module packaged, no secrets/databases/cache/skills in archives |
+| Installed wheel agent tests from `/tmp` with reused locked dependencies | 19 passed in 8.53 seconds |
+| Installed wheel under `/tmp/synapse-langchain-wheel`, executed from `/tmp` | Imported agents from the installed wheel; fixture completed and reopened matching exports using existing locked runtime dependencies |
+
+The new agent tests run the actual LangChain loops against scripted HTTP responses:
+model-selected reversed source order; all four stages; citation validation; complete
+exports/reopen; submission idempotency and configuration conflicts; invalid, repeated,
+negative, boolean/string and injected-URL actions; token/call limits; auth/quota/model
+failures; partial evidence/unknown usage; pre-dispatch cancellation/deadline checks;
+query deduplication/source caps; and disabled tracing. UI tests verify Gemini-gated
+factory construction and retain existing interface checks. No acceptance check was
+weakened. Initial new tests exposed graph middleware nodes exceeding the initial
+recursion allowance; recursion allowance was corrected while keeping independent
+model/tool caps. The integration fixture's quotation was corrected to match the
+scripted synthesis adapter; exact-quote validation was retained.
+
+An attempted fully isolated offline wheel dependency install failed because the local
+cache lacked required wheel metadata/artifacts. No network fallback was used. The wheel
+was installed with `--no-deps` and verified outside the checkout while reusing the
+already installed locked dependency directory via `PYTHONPATH`; this does not establish
+fresh dependency installation from an empty cache. The build warned that the uv cache
+was inside the source directory; archive inspection confirmed it was not packaged.
+
+### Remaining limitations
+
+The new agent/provider path has **not** been smoke-tested live. Historical live results
+below apply to the former direct adapters and are not evidence for new agent behavior.
+No human semantic-grounding benchmark, automatic revision, PDF ingestion, multi-user
+hosting, or manual browser run was added. Local verification used Python 3.12; the
+existing CI matrix also targets 3.13, but hosted CI for this increment is not yet
+recorded here. Agents can stop early or make poor selections; successful tool execution
+and valid citations do not establish report quality. Default total agent token ceilings
+are call-count times per-call limits, not one shared 8,192/2,048 budget. Provider free-tier
+confirmation is not a spending cap. Installed skills and `skills-lock.json` are unchanged.
+
+The following sections are historical checkpoints.
 
 ## README presentation cleanup
 
@@ -18,7 +102,7 @@ README/status-only change; runtime code and dependencies are unchanged. No provi
 calls were made. D1 remains the verified product checkpoint below. Next optional work
 is still S-D2 revision, then S-E evaluation, when requested.
 
-## Current checkpoint — S-D1 complete
+## Historical checkpoint — S-D1 complete
 
 Main integration: [PR #1](https://github.com/ayatinkering/Synapse/pull/1) contains
 all milestone work through D1. The user explicitly authorized creating `main` from

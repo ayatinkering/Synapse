@@ -12,6 +12,7 @@ from uuid import UUID
 
 from filelock import FileLock, Timeout
 
+from synapse.agents import AgentDiscovery
 from synapse.critic import GeminiCritic
 from synapse.discovery import LIVE_LABEL, LiveDiscovery
 from synapse.export import render
@@ -53,6 +54,7 @@ class ResearchService:
         stages: Stages | None = None,
         search: TavilySearch | None = None,
         fetcher: SafeFetcher | None = None,
+        discovery_model: GeminiSynthesis | None = None,
         live_enabled: bool = False,
         synthesis: GeminiSynthesis | None = None,
         synthesis_enabled: bool = False,
@@ -76,6 +78,14 @@ class ResearchService:
             raise
         self.stages = stages or FixtureAdapter()
         self.live = LiveDiscovery(search, fetcher or SafeFetcher()) if search else None
+        if self.live is not None and discovery_model is not None:
+            self.live = AgentDiscovery(
+                self.live,
+                discovery_model,
+                lambda run_id, stage, usage: self.store.update(
+                    run_id, stage=stage, output=usage, checkpoint=True
+                ),
+            )
         self.live_enabled = live_enabled and self.live is not None
         self.critic = critic
         self.critique_enabled = critique_enabled and critic is not None
@@ -147,6 +157,10 @@ class ResearchService:
                 )
             run = Run(
                 kind="live",
+                workflow="langchain" if isinstance(self.live, AgentDiscovery) else "deterministic",
+                agent_config=self.live.model.config
+                if isinstance(self.live, AgentDiscovery)
+                else None,
                 fixture_id=None,
                 input=preview.input,
                 limits=self.limits,
@@ -379,8 +393,8 @@ class ResearchService:
                 self.store.update(run_id, state, error=f"{error}: Prior outputs retained.")
             except ServiceError:
                 self._storage_failure = True
-        except ServiceError:
-            self._record_failure(run_id, "STORAGE_ERROR: A local storage operation failed.")
+        except ServiceError as error:
+            self._record_failure(run_id, str(error))
         except OSError:
             self._record_failure(run_id, "STORAGE_ERROR: Could not write local artifacts.")
         except Exception:

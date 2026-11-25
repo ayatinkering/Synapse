@@ -68,8 +68,8 @@ class GeminiCritic(GeminiSynthesis):
             "evidence": [e.model_dump(mode="json") for e in analysis.evidence],
         }
         try:
-            draft = CritiqueDraft.model_validate_json(
-                self.generate(INSTRUCTIONS, data, schema, context, checkpoint)
+            draft = self.structured_chain(
+                INSTRUCTIONS, data, schema, CritiqueDraft, context, checkpoint
             )
         except (ValidationError, ValueError) as error:
             raise ServiceError("MODEL_MALFORMED: Invalid critique output.") from error

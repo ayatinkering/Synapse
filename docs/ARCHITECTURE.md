@@ -1,6 +1,49 @@
 # Synapse architecture
 
-## Current implementation
+## LangChain integration — November 2026
+
+The current live UI uses two Gemini-directed LangChain `create_agent` loops:
+`search_web(index)` chooses from the approved question/subquestion query catalog;
+`fetch_evidence(index)` chooses from discovered candidates. Catalogs and consumed-index
+sets live in application code. Invalid/repeated actions fail before external requests;
+search, source, fetch, DNS, redirect, byte, and deadline checks remain authoritative.
+Extraction still uses BeautifulSoup and deterministic term-overlap excerpts. The agents
+choose actions; they cannot invent URLs, broaden the catalog, change budgets, or revise
+saved evidence. Search authorization/quota failures stop discovery immediately.
+
+`agents.py` provides a custom LangChain `BaseChatModel`: the bounded Gemini transport
+returns a strict JSON index/null decision, which is converted into one `AIMessage` tool
+call for LangChain to execute. This deliberately does not use the Google SDK or native
+Gemini function calling. Model-call middleware and a second adapter counter limit each
+agent to its catalog size plus one final model decision (defaults: 4 discovery, 11
+analysis). Graph recursion limits also bound orchestration. Each call has the existing
+8,192 input / 2,048 output token bounds, count preflight, 30-second request timeout and
+no automatic retries. Total stage usage is consequently bounded by call count times
+per-call limits; these are not shared 8,192/2,048 token budgets for an entire agent.
+The enclosing worker job keeps its 600-second deadline and cooperative cancellation.
+
+Synthesis and critique use LCEL runnable sequences: bounded generation followed by
+strict Pydantic JSON parsing. Application-owned evidence/citation/quote and critique
+validation remain mandatory after parsing. Neither chain has tools. LangSmith tracing
+is explicitly disabled around agent and chain execution.
+
+Run metadata records `workflow=langchain` and `agent_config`. Optional `discovery_usage`
+and `analysis_usage` stage outputs retain prompt versions and each model call's usage
+checkpoints, including incomplete calls. They appear in JSON/Markdown exports and the
+Run Details UI. Existing databases reopen without a migration; absent fields default
+to the historical deterministic workflow. Request fingerprints include the agent
+workflow/configuration only for new agent runs, preserving old key compatibility.
+SQLite remains authoritative. Analysis streaming saves each completed source before
+the next model call; earlier outputs survive later model failure or cancellation.
+
+The Streamlit factory requires Tavily, Gemini and free-tier confirmation for new live
+discovery. Explicit synthesis/critique gates remain separate. The lower-level service
+still permits deterministic discovery injection for historical tests and callers;
+offline fixture demonstrations remain deterministic and visibly labeled. Revision,
+quality benchmarking, and public hosting remain outside this change. Verification of
+this migration is offline only; historical live checks below apply to the old adapters.
+
+## Previous implementation and unchanged boundaries
 
 S-A implements Pydantic contracts and four typed fixture adapters; deterministic
 integrity validation; a SQLite-backed run service with one background thread; derived

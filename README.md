@@ -1,5 +1,6 @@
 # Synapse
 
+[![LangChain](https://img.shields.io/badge/LangChain-1.x-1C3C3C?logo=langchain&logoColor=white)](https://docs.langchain.com/oss/python/langchain/overview)
 [![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Beautiful Soup](https://img.shields.io/badge/Beautiful%20Soup-4-59666C)](https://www.crummy.com/software/BeautifulSoup/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
@@ -8,11 +9,12 @@
 
 **Turn a research question into a report with sources you can inspect.**
 
-Synapse is a local research assistant that brings web search, evidence collection,
-report writing, and report review into one Streamlit app. Enter a question, add optional
-subquestions, and search for relevant pages through Tavily. Synapse extracts readable
-text from those pages and saves selected passages as evidence. Gemini then uses that
-saved evidence to write a cited report.
+Synapse is a local research assistant built with LangChain and Gemini. It coordinates
+**two tool-augmented agents and two constrained chains**: a discovery agent selects
+approved Tavily searches, an analysis agent chooses discovered pages to fetch and
+extract, a synthesis chain writes a cited report, and a critic chain reviews it.
+A Streamlit interface lets you enter a question, inspect intermediate evidence, and
+export the results.
 
 The report is the starting point for inspection. Each citation connects a claim to a
 saved passage, so you can read the evidence behind an answer without repeating the
@@ -54,15 +56,19 @@ flowchart LR
     C --> X[Inspect and export]
 ```
 
-1. **Search:** turn the question and subquestions into a bounded set of search queries.
-   Retrieve relevant page links through Tavily and retain their search context.
-2. **Collect evidence:** fetch supported HTML pages, remove navigation and other
-   distracting content, and select relevant passages. Save those passages with source
-   links, publication dates when available, and retrieval details.
-3. **Write:** explicitly request a Gemini report using the saved evidence. Validate
+1. **Discovery agent:** Gemini chooses a query from an approved catalog built from the
+   question and subquestions, calls the LangChain `search_web` tool backed by Tavily,
+   inspects its results, and chooses another query or stops. The catalog has at most
+   three entries; each can be searched once, with up to five results per query.
+2. **Analysis agent:** Gemini chooses a discovered source and calls the LangChain
+   `fetch_evidence` tool. The application fetches public HTML, cleans it with Beautiful
+   Soup, caps the saved text at 3,000 characters, and selects up to three exact passages
+   using term overlap. The agent can inspect the result and select another source or
+   stop. It cannot supply an arbitrary URL or change the extraction limits.
+3. **Synthesis chain:** explicitly request a Gemini report using the saved evidence. Validate
    that citations refer to evidence from the same run and quoted text matches the
    referenced passage before presenting the report.
-4. **Review:** explicitly request a separate assessment across five criteria, each
+4. **Critic chain:** explicitly request a separate assessment across five criteria, each
    scored from 0 to 2. Show the total out of 10 and comments linked to report claims.
 
 Live discovery pauses once sources are ready. You choose when to generate the report
@@ -75,8 +81,9 @@ stages. If a later stage fails, earlier saved results remain available.
 | --------- | --------- | ----------- |
 | Language | Python 3.12 / 3.13 | Application logic and pipeline execution |
 | Interface | Streamlit | Research controls, progress, evidence inspection, and downloads |
-| Search | Tavily API | Discover relevant web pages |
-| Report generation and review | Gemini API | Write cited reports and assess them against a rubric |
+| Agent framework | LangChain 1.x (`create_agent`, LCEL) | Two tool-using agent loops and two generation/validation chains |
+| Search | Tavily API through an application-owned LangChain tool | Discover relevant web pages |
+| Language model | Gemini API through a custom LangChain chat adapter and bounded transport | Select agent actions, write reports, and critique them |
 | Content extraction | Beautiful Soup 4 | Parse HTML and extract readable page text |
 | Networking | urllib3, dnspython | Fetch pages with bounded requests and destination checks |
 | Data validation | Pydantic | Define and validate structured research data |
@@ -92,12 +99,13 @@ Synapse/
     ui/
       app.py           Streamlit interface and research controls
       resources.py     Shared service setup for the interface
-    discovery.py       Query planning and search coordination
+    agents.py          LangChain discovery/analysis agents and Gemini chat adapter
+    discovery.py       Shared bounded search and extraction implementation
     search.py          Tavily search integration
     fetch.py           HTML extraction and evidence selection
     network.py         Bounded HTTP connections and URL checks
-    synthesis.py       Gemini report generation from saved evidence
-    critic.py          Gemini report review and scoring
+    synthesis.py       LangChain synthesis chain and bounded Gemini transport
+    critic.py          LangChain critic chain, report review, and scoring
     models.py          Typed contracts for research inputs and outputs
     validation.py      Evidence, citation, and report integrity checks
     service.py         Stage coordination and background processing
@@ -126,12 +134,15 @@ generation, and review.
 flowchart TD
     UI[Streamlit interface] --> Service[Python run service]
     Service --> Worker[Single background worker]
-    Worker --> Discovery[Discovery and evidence collection]
-    Worker --> Synthesis[Report generation]
-    Worker --> Critic[Report review]
+    Worker --> Discovery[LangChain discovery agent]
+    Discovery --> Analysis[LangChain analysis agent]
+    Worker --> Synthesis[LangChain synthesis chain]
+    Worker --> Critic[LangChain critic chain]
     Discovery --> Tavily[Tavily search API]
-    Discovery --> Pages[Public HTML pages]
-    Synthesis --> Gemini[Gemini API]
+    Analysis --> Pages[Public HTML pages]
+    Discovery --> Gemini[Gemini API]
+    Analysis --> Gemini
+    Synthesis --> Gemini
     Critic --> Gemini
     Service <--> Store[(SQLite)]
     Store --> Artifacts[Local artifacts and exports]
@@ -148,7 +159,14 @@ a time.
 
 ### Evidence and Generation
 
-Discovery finds candidate pages through Tavily. The fetch layer checks destinations,
+Both agents use LangChain's `create_agent`. Gemini selects a single catalog index or
+finishes; a custom `BaseChatModel` converts that structured decision into a LangChain
+tool call. Discovery can search only approved question/subquestion queries. Analysis
+can fetch only candidates returned by discovery. Tool functions reject repeated or
+out-of-range actions before making external requests. These are bounded agents, not
+unrestricted web-browsing agents, and they execute sequentially.
+
+The fetch layer checks destinations,
 limits response sizes and request duration, and uses Beautiful Soup to extract readable
 text from supported HTML. Selected excerpts are saved with stable identifiers and
 source metadata.
@@ -157,8 +175,30 @@ Report generation receives the question, source metadata, and saved excerpts. It
 not browse for additional sources. Application validation checks citation ownership
 and literal quotations before accepting the output. The review stage separately
 assesses the saved report and evidence, returning bounded scores and claim-linked
-comments. Valid citation links establish traceability; readers still need to judge
+comments. Synthesis and critique use LangChain Expression Language (LCEL) runnable
+chains: bounded Gemini generation followed by strict Pydantic JSON parsing. Neither
+chain has tools. Valid citation links establish traceability; readers still need to judge
 whether the passages support the conclusions.
+
+### Model Integration and Budgets
+
+The Gemini adapter uses the existing application-owned HTTPS transport rather than
+`langchain-google-genai`. This preserves pinned-IP destination checks, cancellation,
+request deadlines, token preflight, usage validation, and sanitized errors. Agent tool
+calls are adapted from schema-constrained JSON decisions; they do not use Gemini's
+native function-calling API. LangSmith tracing is disabled for these workflows, so
+research text is not automatically sent to a tracing service.
+
+With the default catalog and source caps, discovery permits at most **four model
+calls** and analysis at most **eleven**, including the final decision to stop. Each
+model call has a token-count preflight and defaults to at most 8,192 input tokens,
+2,048 output tokens, and a 30-second provider request timeout. The 600-second worker
+job deadline also applies. There are no automatic model retries. These limits bound
+usage; they do not guarantee free-tier eligibility or prevent provider charges.
+
+Each agent call's progress and reported usage are saved. Reports and reviews retain
+their separate usage records. Live discovery now requires both Tavily and Gemini;
+report generation and critique remain explicit actions afterward.
 
 ### Storage and Recovery
 
@@ -266,6 +306,13 @@ uv run --no-sync pytest -m 'not live'
 uv build
 ```
 
-The default tests run without API keys or network access. They cover evidence
-extraction, citation checks, report scoring, persistence, exports, interface behavior,
-and important failure paths. Live provider checks are separate, opt-in tests.
+The default tests run without API keys or network access. They exercise real LangChain
+agent loops with scripted Gemini HTTP responses, including source selection, tool
+budgets, invalid actions, failures, saved evidence, and all four stages through export
+and reopening. Existing tests cover extraction, citation integrity, scoring, storage,
+and interface behavior. Live provider checks are separate, opt-in tests.
+
+The LangChain migration was verified offline; its new agent/provider path has not had
+a live smoke check. Earlier direct-Gemini synthesis and critique checks do not establish
+live compatibility of the new agents. Model critique is not a factual-accuracy benchmark;
+automatic revision, PDF ingestion, and multi-user hosting remain outside this release.
