@@ -22,6 +22,9 @@ def get_service(data_dir: str) -> ResearchService:
     key = os.environ.get("TAVILY_API_KEY", "").strip()
     enabled = os.environ.get("SYNAPSE_ENABLE_LIVE") == "1"
     gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    agents_enabled = (
+        enabled and bool(gemini_key) and os.environ.get("SYNAPSE_GEMINI_FREE_TIER") == "1"
+    )
     synthesis_enabled = (
         os.environ.get("SYNAPSE_ENABLE_SYNTHESIS") == "1"
         and os.environ.get("SYNAPSE_GEMINI_FREE_TIER") == "1"
@@ -34,7 +37,8 @@ def get_service(data_dir: str) -> ResearchService:
     )
     adapter = None
     critic = None
-    if synthesis_enabled or critique_enabled:
+    discovery_model = None
+    if synthesis_enabled or critique_enabled or agents_enabled:
         config = SynthesisConfig(
             model=os.environ.get("SYNAPSE_GEMINI_MODEL", "gemini-3.5-flash-lite")
         )
@@ -42,10 +46,13 @@ def get_service(data_dir: str) -> ResearchService:
             adapter = GeminiSynthesis(gemini_key, config=config)
         if critique_enabled:
             critic = GeminiCritic(gemini_key, config=config)
+        if agents_enabled:
+            discovery_model = GeminiSynthesis(gemini_key, config=config)
     service = ResearchService(
         Path(data_dir),
         search=TavilySearch(key) if key and enabled else None,
-        live_enabled=enabled,
+        live_enabled=agents_enabled,
+        discovery_model=discovery_model,
         synthesis=adapter,
         synthesis_enabled=synthesis_enabled,
         critic=critic,

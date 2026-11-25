@@ -10,6 +10,7 @@ from uuid import UUID
 
 from synapse.models import (
     TERMINAL,
+    AgentUsage,
     Analysis,
     Critique,
     Discovery,
@@ -36,6 +37,11 @@ def fingerprint(run: Run) -> str:
         "input": run.input.model_dump(mode="json"),
         "limits": run.limits.model_dump(mode="json"),
     }
+    if run.workflow == "langchain":
+        request["workflow"] = run.workflow
+        request["agent_config"] = (
+            run.agent_config.model_dump(mode="json") if run.agent_config else None
+        )
     return sha256(json.dumps(request, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -291,6 +297,12 @@ class Store:
             else None,
             critique=Critique.model_validate_json(outputs["critique"])
             if "critique" in outputs
+            else None,
+            discovery_usage=AgentUsage.model_validate_json(outputs["discovery_usage"])
+            if "discovery_usage" in outputs
+            else None,
+            analysis_usage=AgentUsage.model_validate_json(outputs["analysis_usage"])
+            if "analysis_usage" in outputs
             else None,
         )
 

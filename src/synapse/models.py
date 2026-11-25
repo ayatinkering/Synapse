@@ -98,6 +98,8 @@ class Run(Model):
     id: UUID = Field(default_factory=uuid4)
     fixture_id: str | None = None
     kind: Literal["fixture", "live"] = "fixture"
+    workflow: Literal["deterministic", "langchain"] = "deterministic"
+    agent_config: SynthesisConfig | None = None
     synthesis_config: SynthesisConfig | None = None
     critique_config: SynthesisConfig | None = None
     critique_key: str | None = None
@@ -268,6 +270,11 @@ class Event(Model):
     message: str
 
 
+class AgentUsage(Model):
+    prompt_version: Literal["discovery-agent-v1", "analysis-agent-v1"]
+    calls: list[SynthesisRecord] = Field(default_factory=list)
+
+
 class Snapshot(Model):
     schema_version: Literal[1] = 1
     run: Run
@@ -277,6 +284,8 @@ class Snapshot(Model):
     critique: Critique | None = None
     synthesis: SynthesisRecord | None = None
     critique_usage: SynthesisRecord | None = None
+    discovery_usage: AgentUsage | None = None
+    analysis_usage: AgentUsage | None = None
     events: list[Event] = Field(default_factory=list)
 
 

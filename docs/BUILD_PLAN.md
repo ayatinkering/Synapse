@@ -100,6 +100,21 @@ Requirements: live S08 plus full S01-S11 integration.
 - P0 exit: fresh checkout setup and a live four-stage demo, with deterministic
   regression checks. No inference that a high score proves truth.
 
+## S-L — LangChain alignment (user-authorized November 2026)
+
+- Restore the intended two tool-augmented agents using LangChain `create_agent`,
+  retaining Gemini as the selected provider. Use LCEL for synthesis and critique.
+- Wrap the existing safe Tavily/fetch implementation; application code owns catalogs,
+  tool/model limits, trust-boundary checks, cancellation and evidence validation.
+- Preserve old runs and fixtures; persist agent model configuration and per-call usage.
+- Update the live factory, provider-call UI disclosures, README and architecture.
+- Acceptance: actual agent loops select tools using scripted model HTTP responses;
+  all four stages complete, export and reopen; invalid/repeated actions, model failure,
+  token/call budgets and cancellation/deadline checks cannot bypass boundaries.
+- The user explicitly chose offline-only verification: do not run provider smoke tests.
+  Record that live compatibility of the new path remains unverified.
+- This alignment does not implement S-D2 or S-E. Check actual results in STATUS.
+
 ## S-D2 — bounded revision (P1)
 
 Requirement: S12.

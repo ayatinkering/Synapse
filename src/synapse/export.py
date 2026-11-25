@@ -76,6 +76,20 @@ def render(snapshot: Snapshot) -> tuple[str, str]:
             "",
         ]
     if run.kind == "live":
+        if run.workflow == "langchain":
+            lines += [
+                "## LangChain agents",
+                "",
+                "Discovery and analysis: model-directed, catalog-restricted tool agents.",
+                "Prompts: discovery-agent-v1, analysis-agent-v1.",
+                "Configuration: "
+                + (plain(str(run.agent_config.model_dump())) if run.agent_config else "unknown"),
+                "No automatic model retries. Monetary cost: unavailable.",
+                "",
+            ]
+            for usage in (snapshot.discovery_usage, snapshot.analysis_usage):
+                if usage:
+                    lines += [plain(str(usage.model_dump())), ""]
         lines += [
             "## Request and limits",
             "",

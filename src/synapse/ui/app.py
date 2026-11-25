@@ -173,6 +173,9 @@ def render_run(service: ResearchService, snapshot: Snapshot) -> None:
         if snapshot.synthesis:
             st.caption("Gemini token counts; unavailable counts remain unknown. Cost unavailable.")
             st.json(snapshot.synthesis.model_dump(mode="json"))
+        for usage in (snapshot.discovery_usage, snapshot.analysis_usage):
+            if usage:
+                st.json(usage.model_dump(mode="json"))
         st.caption("Persisted actions and statuses; no private model reasoning.")
         st.json([event.model_dump(mode="json") for event in snapshot.events])
         if snapshot.discovery:
@@ -266,7 +269,7 @@ else:
             date_preference=date,
         )
         preview = service.preview_discovery(input)
-        st.caption("Planned queries (question, then up to two distinct subquestions)")
+        st.caption("Approved query catalog (the discovery agent chooses which queries to search)")
         for query in preview.queries:
             st.text(query)
     except (ValueError, ServiceError):
@@ -279,12 +282,16 @@ else:
             "Retries may incur charges. Provider-reported usage is saved; cost unavailable."
         )
         st.caption(
-            "Discovery makes no model calls. Generate a report separately from saved sources."
+            "LangChain discovery and analysis agents use Gemini to choose approved tool actions. "
+            "At most four discovery and eleven analysis model calls (each with a token preflight). "
+            "Each call allows 8,192 input and 2,048 output tokens by default; no model retries. "
+            "Generate and evaluate the report separately from saved evidence."
         )
     if not service.live_enabled:
         st.warning(
             "Live submission disabled. Configure SYNAPSE_ENABLE_LIVE=1 and "
-            "TAVILY_API_KEY server-side, then restart. Never enter keys in a research field."
+            "TAVILY_API_KEY, GEMINI_API_KEY and SYNAPSE_GEMINI_FREE_TIER=1 server-side, "
+            "then restart. Never enter keys in a research field."
         )
 
 try:

@@ -9,6 +9,25 @@ from synapse.ui.resources import get_service
 APP = str(Path(__file__).parents[1] / "src/synapse/ui/app.py")
 
 
+def test_live_factory_requires_gemini_and_builds_langchain_agents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from synapse.agents import AgentDiscovery
+
+    get_service.clear()
+    monkeypatch.setenv("TAVILY_API_KEY", "test-only-key")
+    monkeypatch.setenv("SYNAPSE_ENABLE_LIVE", "1")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    assert not get_service(str(tmp_path)).live_enabled
+    get_service.clear()
+    monkeypatch.setenv("GEMINI_API_KEY", "test-only-gemini")
+    monkeypatch.setenv("SYNAPSE_GEMINI_FREE_TIER", "1")
+    service = get_service(str(tmp_path))
+    assert service.live_enabled and isinstance(service.live, AgentDiscovery)
+    assert not service.list_runs()
+    get_service.clear()
+
+
 def test_start_inspect_rerun_and_downloads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SYNAPSE_DATA_DIR", str(tmp_path))
     app = AppTest.from_file(APP, default_timeout=10).run()
